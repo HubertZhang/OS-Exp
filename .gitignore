@@ -1,0 +1,22 @@
+# Java class files
+*.class
+
+# Tmp files of editors
+*.swp
+
+#IntelliJ IDEA
+.idea/workspace.xml
+.idea/task.xml
+
+# log files
+*.log
+
+# Mac OS X Desktop Service Store files
+.DS_Store
+
+#server compiled file
+*.pyc
+
+target
+*.orig
+
