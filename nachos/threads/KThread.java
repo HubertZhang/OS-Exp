@@ -29,6 +29,7 @@ import nachos.machine.*;
  */
 public class KThread {
 
+    // For Q1
     private final nachos.threads.Semaphore terminated;
 
     /**
@@ -46,7 +47,9 @@ public class KThread {
      * create an idle thread as well.
      */
     public KThread() {
+        // For Q1
         this.terminated = new nachos.threads.Semaphore(0);
+
         if (currentThread != null) {
             tcb = new TCB();
         } else {
@@ -196,7 +199,10 @@ public class KThread {
 
 
         currentThread.status = statusFinished;
+
+        // For Q1
         currentThread.terminated.V();
+
         sleep();
     }
 
@@ -278,6 +284,7 @@ public class KThread {
     public void join() {
         Lib.debug(dbgThread, "Joining to thread: " + toString());
 
+        // For Q1
         Lib.assertTrue(this != currentThread);
         if (status != statusFinished) {
             if (terminated != null) {
