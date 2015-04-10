@@ -2,6 +2,8 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.LinkedList;
+
 /**
  * An implementation of condition variables that disables interrupt()s for
  * synchronization.
@@ -21,6 +23,11 @@ public class Condition2 {
      * <tt>wake()</tt>, or <tt>wakeAll()</tt>.
      */
     public Condition2(Lock conditionLock) {
+
+        // For Q2
+        // Get Thread queue and do not transfer priority.
+        this.waitList = new RoundRobinScheduler().newThreadQueue(false);
+
         this.conditionLock = conditionLock;
     }
 
@@ -33,9 +40,14 @@ public class Condition2 {
     public void sleep() {
         Lib.assertTrue(conditionLock.isHeldByCurrentThread());
 
+        boolean intStatus = Machine.interrupt().disable();
         conditionLock.release();
 
+        waitList.acquire(KThread.currentThread());
+        KThread.currentThread().sleep();
+
         conditionLock.acquire();
+        Machine.interrupt().restore(intStatus);
     }
 
     /**
@@ -43,7 +55,15 @@ public class Condition2 {
      * current thread must hold the associated lock.
      */
     public void wake() {
+
         Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+
+        boolean intStatus = Machine.interrupt().disable();
+        KThread nextThread = waitList.nextThread();
+        if(nextThread != null) {
+            nextThread.ready();
+        }
+        Machine.interrupt().restore(intStatus);
     }
 
     /**
@@ -51,8 +71,21 @@ public class Condition2 {
      * thread must hold the associated lock.
      */
     public void wakeAll() {
+
         Lib.assertTrue(conditionLock.isHeldByCurrentThread());
+
+        boolean intStatus = Machine.interrupt().disable();
+        KThread nextThread = waitList.nextThread();
+        while (nextThread != null) {
+            nextThread.ready();
+            nextThread = waitList.nextThread();
+        }
+        Machine.interrupt().restore(intStatus);
     }
 
     private Lock conditionLock;
+
+    // For Q2
+    ThreadQueue waitList;
+
 }
