@@ -22,7 +22,7 @@ public class Communicator {
         cond_l = new Condition(lockCntr);
         cond_f = new Condition(lockCntr);
         cond_s = new Condition(lockCntr);
-        read = false;
+        read = true;
     }
 
     /**
@@ -44,6 +44,7 @@ public class Communicator {
          * While There is a message on going, stop and wait.
          */
         while (!read) {
+            System.out.println("Sleep on cond_s.");
             cond_s.sleep();
         }
 
@@ -61,6 +62,7 @@ public class Communicator {
              * If there is no listener, wait until one listener comes.
              */
             while (LCounter == 0) {
+                System.out.println("Speaker sleep on cond.");
                 cond.sleep();
             }
             msg = word;
@@ -71,17 +73,14 @@ public class Communicator {
         /**
          * Before the message is read, stop and read.
          */
-        while (!read) {
-            cond_f.sleep();
-        }
+        System.out.println("Sleep on cond_f.");
+        cond_f.sleep();
 
         /**
          * Wake up another speaker if there is any and leave.
          */
         cond_s.wake();
         read = true;
-        LCounter--;
-        SCounter--;
 
         lockCntr.release();
 
@@ -103,6 +102,7 @@ public class Communicator {
              * If there are some speakers waiting, just wake up one and waiting for him to write.
              */
             cond.wake();
+            System.out.println("Sleep on cond_l.");
             cond_l.sleep();
         }
         else {
@@ -110,6 +110,7 @@ public class Communicator {
              * If there is no speakers waiting, stop and wait.
              */
             while (SCounter == 0) {
+                System.out.println("Listener sleep on cond.");
                 cond.sleep();
             }
         }
@@ -118,11 +119,91 @@ public class Communicator {
          */
         rnt_val = msg;
         cond_f.wake();
+        LCounter--;
+        SCounter--;
 
         lockCntr.release();
         return rnt_val;
     }
-    
+
+    public static void selfTest() {
+
+        Lib.debug(dbgThread, "Communicator tests begin!");
+
+        Communicator channel = new Communicator();
+
+        System.out.print("Communicator tests #1 begin. Speaker first.\n");
+        KThread thd_speaker = new KThread(new Speaker(channel, 1));
+        KThread thd_listener = new KThread(new Listener(channel, 1));
+        thd_speaker.fork();
+        thd_listener.fork();
+        thd_speaker.join();
+        thd_listener.join();
+        System.out.print("Communicator tests #1 finishes.\n");
+
+        System.out.print("Communicator tests #2 begin!\n");
+        thd_listener = new KThread(new Listener(channel, 2));
+        thd_speaker = new KThread(new Speaker(channel, 2));
+        thd_listener.fork();
+        thd_speaker.fork();
+        thd_listener.join();
+        thd_speaker.join();
+        System.out.print("Communicator tests #2 finishes.\n");
+
+    }
+
+    private static class Speaker implements Runnable{
+
+        public Speaker(Communicator channel, int which) {
+            this.which = which;
+            this.channel = channel;
+        }
+
+        @Override
+        public void run() {
+            Lib.debug(dbgThread, "Speaker " + which + " runs.");
+            System.out.print("Speaker " + which + " runs\n");
+
+            for (int i = 0; i != 5; i++) {
+                System.out.print("Speaker " + which + " speaks " + i + "\n");
+                channel.speak(i);
+                System.out.print("Speaker " + which + " ends speaking.\n");
+            }
+
+            Lib.debug(dbgThread, "Speaker " + which + " termiantes.");
+            System.out.print("Speaker " + which + " terminates.\n");
+        }
+
+        private int which;
+        private Communicator channel;
+    }
+
+    private static class Listener implements Runnable {
+
+        public Listener(Communicator channel, int which) {
+            this.which = which;
+            this.channel = channel;
+        }
+
+        @Override
+        public void run() {
+            Lib.debug(dbgThread, "Listener " + which + " runs.");
+            System.out.print("Listener " + which + " runs.\n");
+
+            for (int i = 0; i != 5; i++) {
+                System.out.print("Listener " + which + " begin listening.\n");
+                int msg = channel.listen();
+                System.out.print("Listener " + which + " listened " + msg + "\n");
+            }
+
+            Lib.debug(dbgThread, "Listener " + which + " terminates.");
+            System.out.print("Listener " + which + " terminates.\n");
+        }
+
+        private int which;
+        private Communicator channel;
+    }
+
     private static final char dbgThread = 't';
 
     private Lock lockCntr;
