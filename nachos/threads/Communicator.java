@@ -21,6 +21,7 @@ public class Communicator {
         cond = new Condition(lockCntr);
         cond_l = new Condition(lockCntr);
         cond_f = new Condition(lockCntr);
+        cond_s = new Condition(lockCntr);
         read = false;
     }
 
@@ -78,6 +79,7 @@ public class Communicator {
          * Wake up another speaker if there is any and leave.
          */
         cond_s.wake();
+        read = true;
         LCounter--;
         SCounter--;
 
@@ -115,13 +117,12 @@ public class Communicator {
          * Get the speaker's message and report read.
          */
         rnt_val = msg;
-        read = true;
         cond_f.wake();
 
         lockCntr.release();
         return rnt_val;
     }
-
+    
     private static final char dbgThread = 't';
 
     private Lock lockCntr;
