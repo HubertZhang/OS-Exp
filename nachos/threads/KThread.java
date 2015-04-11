@@ -421,6 +421,10 @@ public class KThread {
 
         new KThread(new PingTest(1)).setName("forked thread").fork();
         new PingTest(0).run();
+
+        System.out.print("Condition2 Tests begin\n");
+        Condition2.selfTest();
+        System.out.print("Condition2 Tests end\n");
     }
 
     private static final char dbgThread = 't';
