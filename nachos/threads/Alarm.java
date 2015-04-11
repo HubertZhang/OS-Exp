@@ -111,11 +111,7 @@ public class Alarm {
      */
     public void timerInterrupt(){
         long curTime = Machine.timer().getTime();
-        for(; !heap.empty() && heap.peek() <= curTime; ) {
-            KThread thread = heap.pop();
-            thread.ready();
-            System.out.println(thread.getName());
-        }
+        for(; !heap.empty() && heap.peek() <= curTime; ) heap.pop().ready();
     }
 
     /**
@@ -215,7 +211,7 @@ public class Alarm {
 
         System.out.println("End task3\n");
     }
-
+    
     private Heap heap = new Heap(5000);
     private Lock lock = new Lock();
 }
