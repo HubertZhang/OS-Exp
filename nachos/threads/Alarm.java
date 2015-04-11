@@ -23,13 +23,93 @@ public class Alarm {
     }
 
     /**
+     * Heap should be accessed ATOMICALLY
+     */
+
+    private class Heap {
+        public class Entry {
+            public KThread thread;
+            public long time;
+            public Entry(KThread thread, long time){
+                this.thread = thread; this.time = time;
+            }
+        }
+
+        private Entry[] array;
+        private int size = 0;
+
+        public Heap(int len){
+            array = new Entry[len];
+        }
+
+        private void up(int pos){
+            while(pos > 0){
+                int nxt = pos >> 1;
+                if(array[nxt].time > array[pos].time){
+                    Entry tmp = array[pos]; array[pos] = array[nxt]; array[nxt] = tmp;
+                    pos = nxt;
+                }
+                else break;
+            }
+        }
+
+        private void down(int pos){
+            while(2*pos+1 <= size-1){
+                if(2*pos+1 == size-1){
+                    if(array[pos].time > array[2*pos+1].time){
+                        Entry tmp = array[pos]; array[pos] = array[size-1]; array[size-1] = tmp;
+                    }
+                    break;
+                }
+                else {
+                    if(array[pos].time <= array[2*pos+1].time && array[pos].time <= array[2*pos+2].time) break;
+                    else {
+                        if(array[2*pos+1].time < array[2*pos+2].time){
+                            Entry tmp = array[pos]; array[pos] = array[2*pos+1]; array[2*pos+1] = tmp;
+                            pos = 2*pos+1;
+                        }
+                        else {
+                            Entry tmp = array[pos]; array[pos] = array[2*pos+2]; array[2*pos+2] = tmp;
+                            pos = 2*pos+2;
+                        }
+                    }
+                }
+            }
+        }
+
+        public void add(KThread thread, long time){
+            Entry entry = new Entry(thread, time);
+            array[size++] = entry;
+            up(size-1);
+        }
+
+        public KThread pop(){
+            if(size == 0) return null;
+            KThread ret = array[0].thread;
+            array[0] = array[--size];
+            down(0);
+            return ret;
+        }
+
+        public long peek(){
+            if(size == 0) return -1;
+            else return array[0].time;
+        }
+
+        public boolean empty(){
+            return size==0;
+        }
+    }
+
+    /**
      * The timer interrupt handler. This is called by the machine's timer
      * periodically (approximately every 500 clock ticks). Causes the current
      * thread to yield, forcing a context switch if there is another thread
      * that should be run.
      */
-    public void timerInterrupt() {
-        KThread.currentThread().yield();
+    public void timerInterrupt(){
+        long curTime = Machine.timer().getTime();
+        for(; !heap.empty() && heap.peek() <= curTime; ) heap.pop().ready();
     }
 
     /**
@@ -48,7 +128,37 @@ public class Alarm {
     public void waitUntil(long x) {
         // for now, cheat just to get something working (busy waiting is bad)
         long wakeTime = Machine.timer().getTime() + x;
+        /*
         while (wakeTime > Machine.timer().getTime())
             KThread.yield();
+        */
+        lock.acquire();
+        heap.add(KThread.currentThread(), wakeTime);
+        lock.release();
+        KThread.sleep();
     }
+
+    /**
+     * Alarm simple testcase
+     */
+    private static class WaitTest implements Runnable {
+        WaitTest(int num){this.num = num;}
+
+        public void run(){
+            System.out.println("fall asleep " + num + " at " + Machine.timer().getTime());
+            ThreadedKernel.alarm.waitUntil(10);
+            System.out.println("wake up: " + num + " at " + Machine.timer().getTime());
+        }
+
+        private int num;
+    }
+
+    public static void selfTest(){
+        for(int i=0; i<100; i++){
+            new KThread(new WaitTest(i)).setName("wait thread").fork();
+        }
+    }
+
+    private Heap heap = new Heap(5000);
+    private Lock lock = new Lock();
 }
