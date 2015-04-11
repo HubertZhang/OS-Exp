@@ -413,6 +413,20 @@ public class KThread {
         private int which;
     }
 
+    /** zhty test-class
+     *
+     */
+    private static class JoinTest implements Runnable {
+        JoinTest() {}
+
+        public void run() {
+            for(int i=0; i<5; i++){
+                System.out.println("kid thread: " + i);
+                yield();
+            }
+        }
+    }
+
     /**
      * Tests whether this module is working.
      */
@@ -422,6 +436,12 @@ public class KThread {
         new KThread(new PingTest(1)).setName("forked thread").fork();
         new PingTest(0).run();
 
+        KThread kid = new KThread(new JoinTest()).setName("kid thread");
+        kid.fork();
+
+        System.out.println("Begin join");
+        kid.join();
+        System.out.println("End join");
         System.out.print("Condition2 Tests begin\n");
         Condition2.selfTest();
         System.out.print("Condition2 Tests end\n");
