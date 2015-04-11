@@ -109,7 +109,11 @@ public class Alarm {
      */
     public void timerInterrupt(){
         long curTime = Machine.timer().getTime();
-        for(; !heap.empty() && heap.peek() <= curTime; ) heap.pop().ready();
+        for(; !heap.empty() && heap.peek() <= curTime; ) {
+            KThread thread = heap.pop();
+            thread.ready();
+            System.out.println(thread.getName());
+        }
     }
 
     /**
@@ -135,18 +139,23 @@ public class Alarm {
         lock.acquire();
         heap.add(KThread.currentThread(), wakeTime);
         lock.release();
-        KThread.sleep();
+
+        boolean intStatus = Machine.interrupt().disable();
+        KThread.currentThread().sleep();
+        Machine.interrupt().restore(intStatus);
     }
 
     /**
      * Alarm simple testcase
      */
     private static class WaitTest implements Runnable {
-        WaitTest(int num){this.num = num;}
+        WaitTest(int num){
+            this.num = num;
+        }
 
         public void run(){
             System.out.println("fall asleep " + num + " at " + Machine.timer().getTime());
-            ThreadedKernel.alarm.waitUntil(10);
+            ThreadedKernel.alarm.waitUntil(1000);
             System.out.println("wake up: " + num + " at " + Machine.timer().getTime());
         }
 
@@ -154,9 +163,15 @@ public class Alarm {
     }
 
     public static void selfTest(){
-        for(int i=0; i<100; i++){
-            new KThread(new WaitTest(i)).setName("wait thread").fork();
+        System.out.println("Begin task3");
+        int size = 200;
+        KThread[] threads = new KThread[size];
+        for(int i=0; i<size; i++) {
+            threads[i] = new KThread(new WaitTest(i)).setName("wait thread");
+            threads[i].fork();
         }
+        for(int i=0; i<size; i++) threads[i].join();
+        System.out.println("End task3");
     }
 
     private Heap heap = new Heap(5000);
