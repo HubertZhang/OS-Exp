@@ -111,7 +111,11 @@ public class Alarm {
      */
     public void timerInterrupt(){
         long curTime = Machine.timer().getTime();
-        for(; !heap.empty() && heap.peek() <= curTime; ) heap.pop().ready();
+        for(; !heap.empty() && heap.peek() <= curTime; ) {
+            KThread thread = heap.pop();
+            thread.ready();
+            System.out.println(thread.getName());
+        }
     }
 
     /**
