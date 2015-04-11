@@ -14,6 +14,14 @@ public class Communicator {
      * Allocate a new communicator.
      */
     public Communicator() {
+        lockCntr = new Lock();
+        SCounter = 0;
+        LCounter = 0;
+        msg = 0;
+        cond = new Condition(lockCntr);
+        cond_l = new Condition(lockCntr);
+        cond_f = new Condition(lockCntr);
+        read = false;
     }
 
     /**
@@ -27,6 +35,54 @@ public class Communicator {
      * @param    word    the integer to transfer.
      */
     public void speak(int word) {
+        Lib.debug(dbgThread, "Enter speak");
+
+        lockCntr.acquire();
+
+        /**
+         * While There is a message on going, stop and wait.
+         */
+        while (!read) {
+            cond_s.sleep();
+        }
+
+        SCounter++;
+        if (LCounter > 0) {
+            /**
+             * If there are some listeners waiting, just leave the message and wake up a listener.
+             */
+            msg = word;
+            read = false;
+            cond.wake();
+        }
+        else {
+            /**
+             * If there is no listener, wait until one listener comes.
+             */
+            while (LCounter == 0) {
+                cond.sleep();
+            }
+            msg = word;
+            read = false;
+            cond_l.wake();
+        }
+
+        /**
+         * Before the message is read, stop and read.
+         */
+        while (!read) {
+            cond_f.sleep();
+        }
+
+        /**
+         * Wake up another speaker if there is any and leave.
+         */
+        cond_s.wake();
+        LCounter--;
+        SCounter--;
+
+        lockCntr.release();
+
     }
 
     /**
@@ -36,6 +92,45 @@ public class Communicator {
      * @return the integer transferred.
      */
     public int listen() {
-        return 0;
+        int rnt_val;
+        lockCntr.acquire();
+
+        LCounter++;
+        if (SCounter > 0) {
+            /**
+             * If there are some speakers waiting, just wake up one and waiting for him to write.
+             */
+            cond.wake();
+            cond_l.sleep();
+        }
+        else {
+            /**
+             * If there is no speakers waiting, stop and wait.
+             */
+            while (SCounter == 0) {
+                cond.sleep();
+            }
+        }
+        /**
+         * Get the speaker's message and report read.
+         */
+        rnt_val = msg;
+        read = true;
+        cond_f.wake();
+
+        lockCntr.release();
+        return rnt_val;
     }
+
+    private static final char dbgThread = 't';
+
+    private Lock lockCntr;
+    private int SCounter;
+    private int LCounter;
+    private int msg;
+    private Condition cond;
+    private Condition cond_l;
+    private Condition cond_f;
+    private Condition cond_s;
+    private boolean read;
 }
