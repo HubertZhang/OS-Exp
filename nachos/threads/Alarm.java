@@ -164,7 +164,7 @@ public class Alarm {
 
     public static void selfTest(){
         System.out.println("Begin task3");
-        int size = 200;
+        int size = 10;
         KThread[] threads = new KThread[size];
         for(int i=0; i<size; i++) {
             threads[i] = new KThread(new WaitTest(i)).setName("wait thread");

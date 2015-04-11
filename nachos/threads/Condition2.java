@@ -43,7 +43,7 @@ public class Condition2 {
         boolean intStatus = Machine.interrupt().disable();
         conditionLock.release();
 
-        waitList.acquire(KThread.currentThread());
+        waitList.waitForAccess(KThread.currentThread());
         KThread.currentThread().sleep();
 
         conditionLock.acquire();
@@ -84,7 +84,108 @@ public class Condition2 {
     }
 
     private Lock conditionLock;
+    private static final char dbgThread = 't';
 
     // For Q2
     ThreadQueue waitList;
+
+    // Q2 test cases
+    public static void selfTest() {
+
+        Lib.debug(dbgThread, "Condition2 Test begin!");
+
+        Lock lock = new Lock();
+        ConditionValue condValue = new ConditionValue(0);
+        Condition2 cond = new Condition2(lock);
+
+        KThread thd_sleeper = new KThread(new Sleeper(cond, lock, condValue, 1));
+        KThread thd_waker = new KThread(new Waker(cond, lock, condValue, 1));
+
+        thd_sleeper.fork();
+        thd_waker.fork();
+        thd_sleeper.join();
+        thd_waker.join();
+    }
+
+    private static class ConditionValue {
+        public ConditionValue(int value) {
+            this.value = value;
+        }
+
+        public void set(int value) {
+            this.value = value;
+        }
+
+        public int get() {
+            return this.value;
+        }
+
+        int value;
+    }
+
+    private static class Sleeper implements Runnable {
+
+        public Sleeper(Condition2 cond, Lock conditionLock, ConditionValue value, int which) {
+            this.cond = cond;
+            this.conditionLock = conditionLock;
+            this.value = value;
+            this.which = which;
+        }
+
+        @Override
+        public void run() {
+
+            conditionLock.acquire();
+            Lib.debug(dbgThread, "Sleeper " + which + " enters critical section.");
+            System.out.print("Sleeper " + which + " enters critical section.\n");
+
+            while(value.get() < 1) {
+                Lib.debug(dbgThread, "Sleeper " + which + " hang up.");
+                System.out.print("Sleeper " + which + " hang up.\n");
+                cond.sleep();
+                Lib.debug(dbgThread, "Sleeper " + which + " awaken with value=" + value.get());
+                System.out.print("Sleeper " + which + " awaken with value=" + value.get() + "\n");
+            }
+
+            Lib.debug(dbgThread, "Sleeper " + which + " exits critical section with value=" + value.get());
+            System.out.print("Sleeper " + which + " exits critical section with value=" + value.get() + "\n");
+            conditionLock.release();
+
+        }
+
+        private Condition2 cond;
+        private Lock conditionLock;
+        private ConditionValue value;
+        private int which;
+    }
+
+    private static class Waker implements Runnable {
+
+        public Waker(Condition2 cond, Lock lock, ConditionValue value, int which) {
+            this.cond = cond;
+            this.lock = lock;
+            this.value = value;
+            this.which = which;
+        }
+
+        @Override
+        public void run() {
+
+            lock.acquire();
+            Lib.debug(dbgThread, "Waker " + which + " enters critical section.");
+            System.out.print("Waker " + which + " enters critical section.\n");
+            value.set(2);
+            cond.wake();
+            Lib.debug(dbgThread, "Waker " + which + " exits critical section with value=" + value.get());
+            System.out.print("Waker " + which + " exits critical section with value=." + value.get() + "\n");
+            lock.release();
+
+        }
+
+        private Condition2 cond;
+        private Lock lock;
+        private ConditionValue value;
+        private int which;
+
+    }
 }

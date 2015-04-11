@@ -442,6 +442,9 @@ public class KThread {
         System.out.println("Begin join");
         kid.join();
         System.out.println("End join");
+        System.out.print("Condition2 Tests begin\n");
+        Condition2.selfTest();
+        System.out.print("Condition2 Tests end\n");
     }
 
     private static final char dbgThread = 't';
