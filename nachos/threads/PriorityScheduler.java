@@ -5,6 +5,8 @@ import nachos.machine.*;
 import java.util.TreeSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.LinkedList;
 
 /**
  * A scheduler that chooses threads based on their priorities.
@@ -126,6 +128,14 @@ public class PriorityScheduler extends Scheduler {
      * A <tt>ThreadQueue</tt> that sorts threads by priority.
      */
     protected class PriorityQueue extends ThreadQueue {
+        public class ListNode {
+            public ThreadState val;
+            public ListNode next;
+            public ListNode(ThreadState val, ListNode next){
+                this.val = val; this.next = next;
+            }
+        }
+
         PriorityQueue(boolean transferPriority) {
             this.transferPriority = transferPriority;
         }
@@ -143,7 +153,29 @@ public class PriorityScheduler extends Scheduler {
         public KThread nextThread() {
             Lib.assertTrue(Machine.interrupt().disabled());
             // implement me
-            return null;
+            Lib.assertTrue(lockholder.thread.schedulingState != null);
+            expose(lockholder); lockholder.checkout(this);
+
+            ThreadState ret = null;
+            for(int i=threads.length-1; i>=0; i--){
+                if(threads[i]!=null){
+                    ret = threads[i].val;
+                    threads[i] = threads[i].next;
+                    break;
+                }
+            }
+            splay(ret);
+            Lib.assertTrue(ret.parent == null);
+
+            for(int i=0; i<threads.length; i++){
+                for(ListNode cur = threads[i]; cur!=null; cur=cur.next){
+                    splay(cur.val);
+                    cur.val.parent = ret;
+                }
+            }
+
+            ret.acquire(this);
+            return ret.thread;
         }
 
         /**
@@ -155,6 +187,11 @@ public class PriorityScheduler extends Scheduler {
          */
         protected ThreadState pickNextThread() {
             // implement me
+            for(int i=threads.length-1; i>=0; i--){
+                if(threads[i]!=null){
+                    return threads[i].val;
+                }
+            }
             return null;
         }
 
@@ -163,11 +200,29 @@ public class PriorityScheduler extends Scheduler {
             // implement me (if you want)
         }
 
+        public void add(ThreadState node){
+            int prio;
+            if(transferPriority) prio = node.getEffectivePriority();
+            else prio = node.getPriority();
+            ListNode newEntry = new ListNode(node, threads[prio]);
+            threads[prio] = newEntry;
+        }
+
         /**
          * <tt>true</tt> if this queue should transfer priority from waiting
          * threads to the owning thread.
          */
+        private ListNode[] threads = null;
+
         public boolean transferPriority;
+        public ThreadState lockholder = null;
+
+        public int getMaxPriority(){
+            for(int i=threads.length-1; i>0; i--){
+                if(threads[i] != null) return i;
+            }
+            return 0;
+        }
     }
 
     /**
@@ -177,16 +232,103 @@ public class PriorityScheduler extends Scheduler {
      *
      * @see    nachos.threads.KThread#schedulingState
      */
+
+    private void rotL(ThreadState node){
+        ThreadState prnt = node.getParent();
+        Lib.assertTrue(prnt != null && prnt.right == node);
+
+        ThreadState grnd = prnt.getParent();
+        if(grnd != null){
+            node.parent = grnd;
+            if(grnd.left == prnt) grnd.left = node;
+            else grnd.right = node;
+        }
+        ThreadState l = node.left;
+
+        prnt.parent = node; node.left = prnt;
+
+        prnt.right = l;
+        if(l != null) l.parent = prnt;
+    }
+
+    private void rotR(ThreadState node){
+        ThreadState prnt = node.getParent();
+        Lib.assertTrue(prnt != null && prnt.left == node);
+
+        ThreadState grnd = prnt.getParent();
+        if(grnd != null){
+            node.parent = grnd;
+            if(grnd.left == prnt) grnd.left = node;
+            else grnd.right = node;
+        }
+        ThreadState r = node.right;
+
+        prnt.parent = node; node.right = prnt;
+
+        prnt.left = r;
+        if(r != null) r.parent = prnt;
+    }
+
+    private void splay(ThreadState node){
+        ThreadState prnt = null;
+        while((prnt = node.getParent()) != null){
+            ThreadState grnd = prnt.getParent();
+            if(grnd == null){
+                if(prnt.left == node) rotR(node);
+                else rotL(node);
+                break;
+            }
+            else {
+                if(grnd.left == prnt){
+                    if(prnt.left == node) rotR(node);
+                    else rotL(node);
+                    rotR(node);
+                }
+                else {
+                    if(prnt.right == node) rotL(node);
+                    else rotR(node);
+                    rotL(node);
+                }
+            }
+        }
+    }
+
+    private ThreadState expose(ThreadState node){
+        ThreadState ret = null;
+        for(; node!=null; node = node.parent){
+            splay(node);
+            node.right = ret;
+            (ret = node).update();
+        }
+        return ret;
+    }
+
     protected class ThreadState {
+        private List<PriorityQueue> kids;
+
+        public void checkout(PriorityQueue waitQueue){
+            boolean flag = false;
+            for(PriorityQueue iter : kids){
+                if(iter == waitQueue){
+                    kids.remove(iter);
+                    flag = true;
+                    break;
+                }
+            }
+            Lib.assertTrue(flag);
+        }
+
         /**
          * Allocate a new <tt>ThreadState</tt> object and associate it with the
          * specified thread.
          *
          * @param    thread    the thread this state belongs to.
          */
-        public ThreadState(KThread thread) {
-            this.thread = thread;
 
+        public ThreadState(KThread thread) {
+            kids = new LinkedList<PriorityQueue>();
+            this.thread = thread;
+            submax = priorityDefault;
             setPriority(priorityDefault);
         }
 
@@ -206,7 +348,12 @@ public class PriorityScheduler extends Scheduler {
          */
         public int getEffectivePriority() {
             // implement me
-            return priority;
+            if(reset){
+                splay(this);
+                reset = false;
+                effectivePriority = right.submax > priority? right.submax : priority;
+            }
+            return effectivePriority;
         }
 
         /**
@@ -219,8 +366,12 @@ public class PriorityScheduler extends Scheduler {
                 return;
 
             this.priority = priority;
-
-            // implement me
+            effectivePriority = priority;
+            for(PriorityQueue iter : kids){
+                int prio = iter.getMaxPriority();
+                if(effectivePriority < prio) effectivePriority = prio;
+            }
+            expose(this);
         }
 
         /**
@@ -236,6 +387,10 @@ public class PriorityScheduler extends Scheduler {
          */
         public void waitForAccess(PriorityQueue waitQueue) {
             // implement me
+            parent = waitQueue.lockholder;
+            expose(this);
+            this.kids.add(waitQueue);
+            waitQueue.add(this);
         }
 
         /**
@@ -250,6 +405,7 @@ public class PriorityScheduler extends Scheduler {
          */
         public void acquire(PriorityQueue waitQueue) {
             // implement me
+            waitQueue.lockholder = this;
         }
 
         /**
@@ -260,5 +416,31 @@ public class PriorityScheduler extends Scheduler {
          * The priority of the associated thread.
          */
         protected int priority;
+
+        public int effectivePriority;
+
+        public ThreadState parent;
+        public ThreadState left;
+        public ThreadState right;
+
+        public int submax;
+        public boolean reset;
+
+        public ThreadState getParent(){
+            if(parent == null || (parent.left != this && parent.right != this))
+                return null;
+            else return parent;
+        }
+
+        public void update(){
+            reset = true;
+            submax = priority;
+            if(left != null){
+                submax = left.submax>submax? left.submax : submax;
+            }
+            if(right != null){
+                submax = right.submax>submax? right.submax : submax;
+            }
+        }
     }
 }
