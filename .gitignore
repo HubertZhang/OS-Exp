@@ -1,12 +1,13 @@
-# Java class files
+\# Java class files
 *.class
 
 # Tmp files of editors
 *.swp
 
 #IntelliJ IDEA
-.idea/workspace.xml
-.idea/task.xml
+#.idea/workspace.xml
+#.idea/task.xml
+.idea/*
 
 # log files
 *.log
