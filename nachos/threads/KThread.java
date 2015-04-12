@@ -31,6 +31,7 @@ public class KThread {
 
     // For Q1
     private final nachos.threads.Semaphore terminated;
+    private int counter;
 
     /**
      * Get the current thread.
@@ -49,6 +50,7 @@ public class KThread {
     public KThread() {
         // For Q1
         this.terminated = new nachos.threads.Semaphore(0);
+        this.counter = 0;
 
         if (currentThread != null) {
             tcb = new TCB();
@@ -201,7 +203,11 @@ public class KThread {
         currentThread.status = statusFinished;
 
         // For Q1
-        currentThread.terminated.V();
+        boolean intStatus = Machine.interrupt().disable();
+        for (int i = 0; i != currentThread.counter; i++) {
+            currentThread.terminated.V();
+        }
+        Machine.interrupt().restore(intStatus);
 
         sleep();
     }
@@ -288,6 +294,7 @@ public class KThread {
         Lib.assertTrue(this != currentThread);
         if (status != statusFinished) {
             if (terminated != null) {
+                counter++;
                 terminated.P();
             }
         }
@@ -428,6 +435,27 @@ public class KThread {
     }
 
     /**
+     * Used to test multiple join operation
+     */
+    private static class Joiner implements Runnable {
+
+        public Joiner(KThread thd, int which) {
+            this.thd = thd;
+            this.which = which;
+        };
+
+        @Override
+        public void run() {
+            System.out.println("Joiner " + which + " joins thread " + thd.getName());
+            thd.join();
+            System.out.println("Joiner " + which + " exits.");
+        }
+
+        private KThread thd;
+        private int which;
+    }
+
+    /**
      * Tests whether this module is working.
      */
     public static void selfTest() {
@@ -436,12 +464,18 @@ public class KThread {
         new KThread(new PingTest(1)).setName("forked thread").fork();
         new PingTest(0).run();
 
+        System.out.println("Begin join test.");
         KThread kid = new KThread(new JoinTest()).setName("kid thread");
-        kid.fork();
+        KThread joiner_1 = new KThread(new Joiner(kid, 1));
+        KThread joiner_2 = new KThread(new Joiner(kid, 2));
 
-        System.out.println("Begin join");
-        kid.join();
-        System.out.println("End join");
+        joiner_1.fork();
+        joiner_2.fork();
+        kid.fork();
+        joiner_1.join();
+        joiner_2.join();
+        System.out.println("End join test.");
+
         System.out.print("Condition2 Tests begin\n");
         Condition2.selfTest();
         System.out.print("Condition2 Tests end\n");
