@@ -211,7 +211,7 @@ public class Alarm {
 
         System.out.println("End task3\n");
     }
-    
+
     private Heap heap = new Heap(5000);
     private Lock lock = new Lock();
 }
