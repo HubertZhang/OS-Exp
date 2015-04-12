@@ -476,12 +476,18 @@ public class KThread {
         joiner_2.join();
         System.out.println("End join test.");
 
+        System.out.print('\n');
+        System.out.println("Begin join");
+        kid.join();
+        System.out.println("End join");
+        System.out.print('\n');
         System.out.print("Condition2 Tests begin\n");
         Condition2.selfTest();
         System.out.print("Condition2 Tests end\n");
 
+        System.out.print('\n');
         System.out.println("Communicator tests begin.");
-        Communicator.selfTest();
+        //Communicator.selfTest();
         System.out.println("Communicator tests over.");
     }
 

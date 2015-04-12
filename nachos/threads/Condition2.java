@@ -3,6 +3,7 @@ package nachos.threads;
 import nachos.machine.*;
 
 import java.util.LinkedList;
+import java.util.Vector;
 
 /**
  * An implementation of condition variables that disables interrupt()s for
@@ -94,17 +95,60 @@ public class Condition2 {
 
         Lib.debug(dbgThread, "Condition2 Test begin!");
 
+        // 1 sleeper 1 waker
         Lock lock = new Lock();
         ConditionValue condValue = new ConditionValue(0);
         Condition2 cond = new Condition2(lock);
 
+        System.out.println("Condition variable test #1 begin.");
         KThread thd_sleeper = new KThread(new Sleeper(cond, lock, condValue, 1));
         KThread thd_waker = new KThread(new Waker(cond, lock, condValue, 1));
-
         thd_sleeper.fork();
         thd_waker.fork();
         thd_sleeper.join();
         thd_waker.join();
+        System.out.println("Condition variable test #1 end.");
+
+        // ssssswwwww
+        lock = new Lock();
+        condValue = new ConditionValue(0);
+        cond = new Condition2(lock);
+
+        System.out.println("Condition variable test #2 begin.");
+        Vector<KThread> thd_sleepers = new Vector<KThread>();
+        Vector<KThread> thd_wakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++) {
+            thd_sleepers.add(new KThread(new Sleeper(cond, lock, condValue, i)));
+            thd_wakers.add(new KThread(new Waker(cond, lock, condValue, i)));
+        }
+        for (KThread k: thd_sleepers)
+            k.fork();
+        for (KThread k: thd_wakers) {
+            k.fork();
+            KThread.yield();
+        }
+        for (KThread k: thd_sleepers)
+            k.join();
+        for (KThread k: thd_wakers)
+            k.join();
+        System.out.println("Condition variable test #2 end.");
+
+        // wsw
+        lock = new Lock();
+        condValue = new ConditionValue(0);
+        cond = new Condition2(lock);
+
+        System.out.println("Condition variable test #3 begin.");
+        thd_sleeper = new KThread(new Sleeper(cond, lock, condValue, 1));
+        KThread thd_waker1 = new KThread(new Waker(cond, lock, condValue,1));
+        KThread thd_waker2 = new KThread(new Waker(cond, lock, condValue,2));
+        thd_waker1.fork(); //useless
+        thd_sleeper.fork();
+        thd_waker2.fork();
+        thd_waker1.join();
+        thd_sleeper.join();
+        thd_waker2.join();
+        System.out.println("Condition variable test #3 end.");
     }
 
     private static class ConditionValue {

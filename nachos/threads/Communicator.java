@@ -2,6 +2,9 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.ArrayList;
+import java.util.Vector;
+
 /**
  * A <i>communicator</i> allows threads to synchronously exchange 32-bit
  * messages. Multiple threads can be waiting to <i>speak</i>,
@@ -132,6 +135,7 @@ public class Communicator {
 
         Communicator channel = new Communicator();
 
+        // sl
         System.out.print("Communicator tests #1 begin. Speaker first.\n");
         KThread thd_speaker = new KThread(new Speaker(channel, 1));
         KThread thd_listener = new KThread(new Listener(channel, 1));
@@ -141,6 +145,7 @@ public class Communicator {
         thd_listener.join();
         System.out.print("Communicator tests #1 finishes.\n");
 
+        // ls
         System.out.print("Communicator tests #2 begin!\n");
         thd_listener = new KThread(new Listener(channel, 2));
         thd_speaker = new KThread(new Speaker(channel, 2));
@@ -150,6 +155,133 @@ public class Communicator {
         thd_speaker.join();
         System.out.print("Communicator tests #2 finishes.\n");
 
+        // lllllsssss with speakers much faster than reader
+        System.out.print("Communicator tests #3 begin!\n");
+        Vector<KThread> thd_listeners = new Vector<KThread>();
+        Vector<KThread> thd_speakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++){
+            thd_listeners.add(new KThread(new Listener(channel, i)));
+            thd_speakers.add(new KThread(new Speaker(channel, i)));
+        }
+        for (KThread k: thd_listeners) {
+            k.fork();
+        }
+        for (KThread k: thd_speakers) {
+            k.fork();
+        }
+        for (KThread k: thd_listeners){
+            k.join();
+        }
+        for (KThread k: thd_speakers) {
+            k.join();
+        }
+        System.out.print("Communicator tests #3 finishes.\n");
+
+        // lllllsssss with speakers slower than reader
+        System.out.print("Communicator tests #4 begin!\n");
+        thd_listeners = new Vector<KThread>();
+        thd_speakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++){
+            thd_listeners.add(new KThread(new Listener(channel, i)));
+            thd_speakers.add(new KThread(new Speaker(channel, i)));
+        }
+        for (KThread k: thd_listeners) {
+            k.fork();
+        }
+        for (KThread k: thd_speakers) {
+            k.fork();
+            KThread.yield();
+        }
+        for (KThread k: thd_listeners){
+            k.join();
+        }
+        for (KThread k: thd_speakers) {
+            k.join();
+        }
+        System.out.print("Communicator tests #4 finishes.\n");
+
+        // ssssslllll with listener much faster than speaker
+        System.out.print("Communicator tests #5 begin!\n");
+        thd_listeners = new Vector<KThread>();
+        thd_speakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++){
+            thd_listeners.add(new KThread(new Listener(channel, i)));
+            thd_speakers.add(new KThread(new Speaker(channel, i)));
+        }
+        for (KThread k: thd_speakers) {
+            k.fork();
+        }
+        for (KThread k: thd_listeners) {
+            k.fork();
+        }
+        for (KThread k: thd_speakers) {
+            k.join();
+        }
+        for (KThread k: thd_listeners){
+            k.join();
+        }
+        System.out.print("Communicator tests #5 finishes.\n");
+
+        // ssssslllll with listener slower than speaker
+        System.out.print("Communicator tests #6 begin!\n");
+        thd_listeners = new Vector<KThread>();
+        thd_speakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++){
+            thd_listeners.add(new KThread(new Listener(channel, i)));
+            thd_speakers.add(new KThread(new Speaker(channel, i)));
+        }
+        for (KThread k: thd_speakers) {
+            k.fork();
+        }
+        for (KThread k: thd_listeners) {
+            k.fork();
+            KThread.yield();
+        }
+        for (KThread k: thd_speakers) {
+            k.join();
+        }
+        for (KThread k: thd_listeners){
+            k.join();
+        }
+        System.out.print("Communicator tests #6 finishes.\n");
+
+        /*  bug here
+        // lslslslsls
+        System.out.print("Communicator tests #7 begin!\n");
+        thd_listeners = new Vector<KThread>();
+        thd_speakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++){
+            thd_listeners.add(new KThread(new Listener(channel, i)));
+            thd_speakers.add(new KThread(new Speaker(channel, i)));
+        }
+        for (int i = 0; i < 5; i++){
+            thd_listeners.get(i).fork();
+            thd_speakers.get(i).fork();
+        }
+        for (int i = 0; i < 5; i++){
+            thd_listeners.get(i).join();
+            thd_speakers.get(i).join();
+        }
+        System.out.print("Communicator tests #7 finishes.\n");
+
+        // slslslslsl
+        System.out.print("Communicator tests #8 begin!\n");
+        thd_listeners = new Vector<KThread>();
+        thd_speakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++){
+            thd_listeners.add(new KThread(new Listener(channel, i)));
+            thd_speakers.add(new KThread(new Speaker(channel, i)));
+        }
+        for (int i = 0; i < 5; i++){
+            thd_speakers.get(i).fork();
+            thd_listeners.get(i).fork();
+        }
+        for (int i = 0; i < 5; i++){
+            thd_speakers.get(i).join();
+            thd_listeners.get(i).join();
+        }
+        System.out.print("Communicator tests #8 finishes.\n");
+        */
     }
 
     private static class Speaker implements Runnable{
@@ -164,11 +296,11 @@ public class Communicator {
             Lib.debug(dbgThread, "Speaker " + which + " runs.");
             System.out.print("Speaker " + which + " runs\n");
 
-            for (int i = 0; i != 5; i++) {
-                System.out.print("Speaker " + which + " speaks " + i + "\n");
-                channel.speak(i);
+            //for (int i = 0; i != 5; i++) {
+                System.out.print("Speaker " + which + " speaks "+ which  + "\n");
+                channel.speak(which);
                 System.out.print("Speaker " + which + " ends speaking.\n");
-            }
+            //}
 
             Lib.debug(dbgThread, "Speaker " + which + " termiantes.");
             System.out.print("Speaker " + which + " terminates.\n");
@@ -190,11 +322,11 @@ public class Communicator {
             Lib.debug(dbgThread, "Listener " + which + " runs.");
             System.out.print("Listener " + which + " runs.\n");
 
-            for (int i = 0; i != 5; i++) {
+            //for (int i = 0; i != 5; i++) {
                 System.out.print("Listener " + which + " begin listening.\n");
                 int msg = channel.listen();
                 System.out.print("Listener " + which + " listened " + msg + "\n");
-            }
+            //}
 
             Lib.debug(dbgThread, "Listener " + which + " terminates.");
             System.out.print("Listener " + which + " terminates.\n");
