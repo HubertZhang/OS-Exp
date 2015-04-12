@@ -163,6 +163,7 @@ public class Alarm {
     }
 
     public static void selfTest(){
+        System.out.print('\n');
         System.out.println("Begin task3");
         int size = 10;
         KThread[] threads = new KThread[size];

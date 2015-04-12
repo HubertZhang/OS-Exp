@@ -439,13 +439,16 @@ public class KThread {
         KThread kid = new KThread(new JoinTest()).setName("kid thread");
         kid.fork();
 
+        System.out.print('\n');
         System.out.println("Begin join");
         kid.join();
         System.out.println("End join");
+        System.out.print('\n');
         System.out.print("Condition2 Tests begin\n");
         Condition2.selfTest();
         System.out.print("Condition2 Tests end\n");
 
+        System.out.print('\n');
         System.out.println("Communicator tests begin.");
         Communicator.selfTest();
         System.out.println("Communicator tests over.");
