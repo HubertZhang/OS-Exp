@@ -24,7 +24,6 @@ public class Communicator {
         wait_l = false;
         wait_s = false;
         cond = new Condition(lockCntr);
-        cond_f = new Condition(lockCntr);
         cond_l = new Condition(lockCntr);
         cond_s = new Condition(lockCntr);
     }
@@ -63,8 +62,8 @@ public class Communicator {
         }
 
         msg = word;
-        System.out.println("Speaker sleep on cond_f");
-        cond_f.sleep();
+        System.out.println("Speaker sleep on cond to wait for listen");
+        cond.sleep();
 
         flag_s = false;
         flag_l = false;
@@ -105,7 +104,7 @@ public class Communicator {
         }
 
         rnt_val = msg;
-        cond_f.wake();
+        cond.wake();
 
         lockCntr.release();
         return rnt_val;
@@ -313,5 +312,5 @@ public class Communicator {
     private int msg;
 
     private boolean flag_s, flag_l, wait_l, wait_s;
-    private Condition cond_s, cond_l, cond_f, cond;
+    private Condition cond_s, cond_l, cond;
 }
