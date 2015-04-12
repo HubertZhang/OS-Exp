@@ -18,14 +18,14 @@ public class Communicator {
      */
     public Communicator() {
         lockCntr = new Lock();
-        SCounter = 0;
-        LCounter = 0;
         msg = 0;
+        flag_l = false;
+        flag_s = false;
+        wait_l = false;
+        wait_s = false;
         cond = new Condition(lockCntr);
         cond_l = new Condition(lockCntr);
-        cond_f = new Condition(lockCntr);
         cond_s = new Condition(lockCntr);
-        read = true;
     }
 
     /**
@@ -43,50 +43,35 @@ public class Communicator {
 
         lockCntr.acquire();
 
-        /**
-         * While There is a message on going, stop and wait.
-         */
-        while (!read) {
-            System.out.println("Sleep on cond_s.");
+        while (flag_s) {
+            System.out.println("Speaker sleep on cond_s.\n");
             cond_s.sleep();
         }
 
-        SCounter++;
-        if (LCounter > 0) {
-            /**
-             * If there are some listeners waiting, just leave the message and wake up a listener.
-             */
-            msg = word;
-            read = false;
+        flag_s = true;
+
+        if (wait_l) {
             cond.wake();
         }
         else {
-            /**
-             * If there is no listener, wait until one listener comes.
-             */
-            while (LCounter == 0) {
-                System.out.println("Speaker sleep on cond.");
-                cond.sleep();
-            }
-            msg = word;
-            read = false;
-            cond_l.wake();
+            wait_s = true;
+            System.out.println("Speaker sleep on cond\n");
+            cond.sleep();
+            cond.wake();
+            wait_s = false;
         }
 
-        /**
-         * Before the message is read, stop and read.
-         */
-        System.out.println("Sleep on cond_f.");
-        cond_f.sleep();
+        msg = word;
+        System.out.println("Speaker sleep on cond to wait for listen");
+        cond.sleep();
 
-        /**
-         * Wake up another speaker if there is any and leave.
-         */
+        flag_s = false;
+        flag_l = false;
+
         cond_s.wake();
-        read = true;
+        cond_l.wake();
 
         lockCntr.release();
-
     }
 
     /**
@@ -99,31 +84,27 @@ public class Communicator {
         int rnt_val;
         lockCntr.acquire();
 
-        LCounter++;
-        if (SCounter > 0) {
-            /**
-             * If there are some speakers waiting, just wake up one and waiting for him to write.
-             */
-            cond.wake();
-            System.out.println("Sleep on cond_l.");
+        while (flag_l) {
+            System.out.println("Listener sleep on cond_l.\n");
             cond_l.sleep();
         }
-        else {
-            /**
-             * If there is no speakers waiting, stop and wait.
-             */
-            while (SCounter == 0) {
-                System.out.println("Listener sleep on cond.");
-                cond.sleep();
-            }
+
+        flag_l = true;
+
+        if (wait_s) {
+            cond.wake();
+            System.out.println("Listener sleep on cond to wait for message.");
+            cond.sleep();
         }
-        /**
-         * Get the speaker's message and report read.
-         */
+        else {
+            wait_l = true;
+            System.out.println("Listener sleep on cond.\n");
+            cond.sleep();
+            wait_l = false;
+        }
+
         rnt_val = msg;
-        cond_f.wake();
-        LCounter--;
-        SCounter--;
+        cond.wake();
 
         lockCntr.release();
         return rnt_val;
@@ -245,7 +226,6 @@ public class Communicator {
         }
         System.out.print("Communicator tests #6 finishes.\n");
 
-        /*  bug here
         // lslslslsls
         System.out.print("Communicator tests #7 begin!\n");
         thd_listeners = new Vector<KThread>();
@@ -281,7 +261,6 @@ public class Communicator {
             thd_listeners.get(i).join();
         }
         System.out.print("Communicator tests #8 finishes.\n");
-        */
     }
 
     private static class Speaker implements Runnable{
@@ -293,17 +272,12 @@ public class Communicator {
 
         @Override
         public void run() {
-            Lib.debug(dbgThread, "Speaker " + which + " runs.");
-            System.out.print("Speaker " + which + " runs\n");
 
             //for (int i = 0; i != 5; i++) {
-                System.out.print("Speaker " + which + " speaks "+ which  + "\n");
-                channel.speak(which);
-                System.out.print("Speaker " + which + " ends speaking.\n");
+            System.out.print("Speaker " + which + " speaks "+ which  + "\n");
+            channel.speak(which);
+            System.out.print("Speaker " + which + " ends speaking.\n");
             //}
-
-            Lib.debug(dbgThread, "Speaker " + which + " termiantes.");
-            System.out.print("Speaker " + which + " terminates.\n");
         }
 
         private int which;
@@ -319,17 +293,13 @@ public class Communicator {
 
         @Override
         public void run() {
-            Lib.debug(dbgThread, "Listener " + which + " runs.");
-            System.out.print("Listener " + which + " runs.\n");
 
             //for (int i = 0; i != 5; i++) {
-                System.out.print("Listener " + which + " begin listening.\n");
-                int msg = channel.listen();
-                System.out.print("Listener " + which + " listened " + msg + "\n");
+            System.out.print("Listener " + which + " begin listening.\n");
+            int msg = channel.listen();
+            System.out.print("Listener " + which + " listened " + msg + "\n");
             //}
 
-            Lib.debug(dbgThread, "Listener " + which + " terminates.");
-            System.out.print("Listener " + which + " terminates.\n");
         }
 
         private int which;
@@ -339,12 +309,8 @@ public class Communicator {
     private static final char dbgThread = 't';
 
     private Lock lockCntr;
-    private int SCounter;
-    private int LCounter;
     private int msg;
-    private Condition cond;
-    private Condition cond_l;
-    private Condition cond_f;
-    private Condition cond_s;
-    private boolean read;
+
+    private boolean flag_s, flag_l, wait_l, wait_s;
+    private Condition cond_s, cond_l, cond;
 }
