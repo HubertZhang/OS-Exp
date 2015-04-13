@@ -2,6 +2,8 @@ package nachos.threads;
 
 import nachos.machine.*;
 
+import java.util.Random;
+
 /**
  * Uses the hardware timer to provide preemption, and to allow threads to sleep
  * until a certain time.
@@ -149,17 +151,19 @@ public class Alarm {
      * Alarm simple testcase
      */
     private static class WaitTest implements Runnable {
-        WaitTest(int num){
+        WaitTest(int num, int wait){
             this.num = num;
+            this.wait = wait;
         }
 
         public void run(){
             System.out.println("fall asleep " + num + " at " + Machine.timer().getTime());
-            ThreadedKernel.alarm.waitUntil(1000);
+            ThreadedKernel.alarm.waitUntil(wait);
             System.out.println("wake up: " + num + " at " + Machine.timer().getTime());
         }
 
         private int num;
+        private int wait;
     }
 
     public static void selfTest(){
@@ -167,11 +171,48 @@ public class Alarm {
         System.out.println("Begin task3");
         int size = 10;
         KThread[] threads = new KThread[size];
+
+        // 10 thds all wait 1000
+        System.out.println("alarm test #1 begins.");
         for(int i=0; i<size; i++) {
-            threads[i] = new KThread(new WaitTest(i)).setName("wait thread");
+            threads[i] = new KThread(new WaitTest(i,1000)).setName("wait thread"+i);
             threads[i].fork();
         }
         for(int i=0; i<size; i++) threads[i].join();
+        System.out.println("alarm test #1 ends.");
+
+        // 10 thds wait reverse time
+        System.out.println("alarm test #2 begins.");
+        for(int i=0; i<size; i++) {
+            threads[i] = new KThread(new WaitTest(i, 10000-i*1000)).setName("wait thread"+i);
+            threads[i].fork();
+        }
+        for(int i=0; i<size; i++) threads[i].join();
+        System.out.println("alarm test #2 ends.");
+
+        //10 thds wait 100
+        System.out.println("alarm test #3 begins.");
+        for(int i=0; i<size; i++) {
+            threads[i] = new KThread(new WaitTest(i,100)).setName("wait thread"+i);
+            threads[i].fork();
+            KThread.yield();
+        }
+        for(int i=0; i<size; i++) threads[i].join();
+        System.out.println("alarm test #3 ends.");
+
+        //50 thds wait random time with yields
+        System.out.println("alarm test #4 begins.");
+        Random d = new Random();
+        size = 50;
+        threads = new KThread[size];
+        for(int i=0; i<size; i++) {
+            threads[i] = new KThread(new WaitTest(i, d.nextInt()%1500)).setName("wait thread"+i);
+            threads[i].fork();
+            KThread.yield();
+        }
+        for(int i=0; i<size; i++) threads[i].join();
+        System.out.println("alarm test #4 ends.");
+
         System.out.println("End task3");
     }
 
