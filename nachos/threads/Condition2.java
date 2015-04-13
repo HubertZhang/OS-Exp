@@ -217,6 +217,24 @@ public class Condition2 {
             thd_wakers.get(i).join();
         }
         System.out.println("Condition variable test #6 end.");
+
+        // sssssw wake all
+        lock = new Lock();
+        condValue = new ConditionValue(0);
+        cond = new Condition2(lock);
+
+        System.out.println("Condition variable test #7 begin.");
+        thd_sleepers = new Vector<KThread>();
+        KThread thd_allwaker = new KThread(new AllWaker(cond, lock, condValue, 0));
+        for (int i = 0; i < 5; i++)
+            thd_sleepers.add(new KThread(new Sleeper(cond, lock, condValue, i)));
+        for (KThread k: thd_sleepers)
+            k.fork();
+        thd_allwaker.fork();
+        for (KThread k: thd_sleepers)
+            k.join();
+        thd_allwaker.join();
+        System.out.println("Condition variable test #7 end.");
     }
 
     private static class ConditionValue {
@@ -288,6 +306,36 @@ public class Condition2 {
             System.out.print("Waker " + which + " enters critical section.\n");
             //value.set(2);
             cond.wake();
+            Lib.debug(dbgThread, "Waker " + which + " exits critical section with value=" + value.get());
+            System.out.print("Waker " + which + " exits critical section with value=." + value.get() + "\n");
+            lock.release();
+
+        }
+
+        private Condition2 cond;
+        private Lock lock;
+        private ConditionValue value;
+        private int which;
+
+    }
+
+    private static class AllWaker implements Runnable {
+
+        public AllWaker(Condition2 cond, Lock lock, ConditionValue value, int which) {
+            this.cond = cond;
+            this.lock = lock;
+            this.value = value;
+            this.which = which;
+        }
+
+        @Override
+        public void run() {
+
+            lock.acquire();
+            Lib.debug(dbgThread, "Waker " + which + " enters critical section.");
+            System.out.print("Waker " + which + " enters critical section.\n");
+            //value.set(2);
+            cond.wakeAll();
             Lib.debug(dbgThread, "Waker " + which + " exits critical section with value=" + value.get());
             System.out.print("Waker " + which + " exits critical section with value=." + value.get() + "\n");
             lock.release();
