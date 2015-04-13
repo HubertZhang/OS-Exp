@@ -117,7 +117,7 @@ public class PriorityScheduler extends Scheduler {
      * @param    thread    the thread whose scheduling state to return.
      * @return the scheduling state of the specified thread.
      */
-    protected ThreadState getThreadState(KThread thread) {
+    protected static ThreadState getThreadState(KThread thread) {
         if (thread.schedulingState == null)
             thread.schedulingState = new ThreadState(thread);
 
@@ -137,7 +137,7 @@ public class PriorityScheduler extends Scheduler {
         }
 
         PriorityQueue(boolean transferPriority) {
-            this.transferPriority = transferPriority;
+            this.transferPriority = true;
             threads = new ListNode[priorityMaximum - priorityMinimum +1];
             for(int i=0; i<threads.length; i++){
                 threads[i] = new ListNode(null, null);
@@ -237,7 +237,7 @@ public class PriorityScheduler extends Scheduler {
      * @see    nachos.threads.KThread#schedulingState
      */
 
-    protected class ThreadState {
+    protected static class ThreadState {
         private List<PriorityQueue> kids;
 
         /**
@@ -315,10 +315,9 @@ public class PriorityScheduler extends Scheduler {
          */
         public void waitForAccess(PriorityQueue waitQueue) {
             // implement me
-            // first-time entrance
-            if(this != waitQueue.lockholder) queue = waitQueue;
+            queue = waitQueue;
             // come-back to the waitQueue
-            else {
+            if(this == waitQueue.lockholder){
                 waitQueue.lockholder = null;
                 for(PriorityQueue iter : kids){
                     if(iter == waitQueue) {
@@ -328,6 +327,11 @@ public class PriorityScheduler extends Scheduler {
                 for(int i=0; i<counts.length; i++) counts[i] -= waitQueue.counts[i];
             }
             waitQueue.add(this);
+            ThreadState cur = waitQueue.lockholder;
+            for(; cur != null; cur = cur.queue.lockholder){
+                cur.counts[priority]++;
+                if(cur.queue == null) break;
+            }
         }
 
         /**
@@ -368,5 +372,49 @@ public class PriorityScheduler extends Scheduler {
 
         public PriorityQueue queue;
         public int[] counts = new int[priorityMaximum - priorityMinimum + 1];
+    }
+
+    private static class PingTest implements Runnable {
+        PingTest(int which) {
+            this.which = which;
+        }
+
+        public void run() {
+            for (int i = 0; i < 5; i++) {
+                System.out.println("*** thread " + which + " looped "
+                        + i + " times");
+                KThread.currentThread().yield();
+            }
+        }
+
+        private int which;
+    }
+
+    public static void selfTest(){
+        System.out.println("Begin task5 test");
+        KThread hi = new KThread(new Runnable() {
+            public void run(){
+                KThread lo = new KThread(new PingTest(11)).setName("low priority");
+                getThreadState(lo).setPriority(0);
+                lo.fork();
+                lo.join();
+                for (int i = 0; i < 5; i++) {
+                    System.out.println("*** thread " + 0 + " looped "
+                            + i + " times");
+                    KThread.currentThread().yield();
+                }
+            }
+        }).setName("high priority");
+        getThreadState(hi).setPriority(7);
+        KThread[] mids = new KThread[10];
+        for(int i=0; i<10; i++) {
+            mids[i] = new KThread(new PingTest(i+1)).setName("mid priority");
+            getThreadState(mids[i]).setPriority(4);
+        }
+        hi.fork();
+        for(int i=0; i<10; i++) mids[i].fork();
+        hi.join();
+        for(int i=0; i<10; i++) mids[i].join();
+        System.out.println("End task5 test");
     }
 }
