@@ -27,7 +27,7 @@ public class Condition2 {
 
         // For Q2
         // Get Thread queue and do not transfer priority.
-        this.waitList = new RoundRobinScheduler().newThreadQueue(false);
+        this.waitList = ThreadedKernel.scheduler.newThreadQueue(true);
 
         this.conditionLock = conditionLock;
     }

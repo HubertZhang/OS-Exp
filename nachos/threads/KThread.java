@@ -495,8 +495,8 @@ public class KThread {
 
         System.out.println("Begin join test.");
         KThread kid = new KThread(new JoinTest()).setName("kid thread");
-        KThread joiner_1 = new KThread(new Joiner(kid, 1));
-        KThread joiner_2 = new KThread(new Joiner(kid, 2));
+        KThread joiner_1 = new KThread(new Joiner(kid, 1)).setName("joiner 1");
+        KThread joiner_2 = new KThread(new Joiner(kid, 2)).setName("joiner 2");
 
         joiner_1.fork();
         joiner_2.fork();
