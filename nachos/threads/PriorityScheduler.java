@@ -137,7 +137,7 @@ public class PriorityScheduler extends Scheduler {
         }
 
         PriorityQueue(boolean transferPriority) {
-            this.transferPriority = true;
+            this.transferPriority = transferPriority;
             threads = new ListNode[priorityMaximum - priorityMinimum +1];
             for(int i=0; i<threads.length; i++){
                 threads[i] = new ListNode(null, null);

@@ -29,6 +29,7 @@ import nachos.machine.*;
  */
 public class KThread {
 
+
     /**
      * Get the current thread.
      *
