@@ -113,6 +113,7 @@ public class Communicator {
     public static void selfTest() {
 
         Lib.debug(dbgThread, "Communicator tests begin!");
+        System.out.println("Communicator tests begin.");
 
         Communicator channel = new Communicator();
 
@@ -299,6 +300,7 @@ public class Communicator {
             thd_listeners.get(i).join();
         }
         System.out.print("Communicator tests #10 finishes.\n");
+        System.out.println("Communicator tests over.\n");
     }
 
     private static class Speaker implements Runnable{

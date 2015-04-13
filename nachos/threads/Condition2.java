@@ -94,6 +94,7 @@ public class Condition2 {
     public static void selfTest() {
 
         Lib.debug(dbgThread, "Condition2 Test begin!");
+        System.out.print("Condition2 Tests begin\n");
 
         // 1 sleeper 1 waker
         Lock lock = new Lock();
@@ -235,6 +236,8 @@ public class Condition2 {
             k.join();
         thd_allwaker.join();
         System.out.println("Condition variable test #7 end.");
+
+        System.out.println("Condition2 Tests end\n");
     }
 
     private static class ConditionValue {

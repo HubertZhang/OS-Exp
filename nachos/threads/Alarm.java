@@ -213,7 +213,7 @@ public class Alarm {
         for(int i=0; i<size; i++) threads[i].join();
         System.out.println("alarm test #4 ends.");
 
-        System.out.println("End task3");
+        System.out.println("End task3\n");
     }
 
     private Heap heap = new Heap(5000);
