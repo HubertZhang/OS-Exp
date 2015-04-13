@@ -29,10 +29,6 @@ import nachos.machine.*;
  */
 public class KThread {
 
-    // For Q1
-    private final nachos.threads.Semaphore terminated;
-    private int counter;
-
     /**
      * Get the current thread.
      *
@@ -48,10 +44,18 @@ public class KThread {
      * create an idle thread as well.
      */
     public KThread() {
-        // For Q1
+        /**
+         * For Problem 1
+         */
+        boolean intStatus = Machine.interrupt().disable();
+        waitList = ThreadedKernel.scheduler.newThreadQueue(true);
+        waitList.acquire(this);
+        Machine.interrupt().restore(intStatus);
+
+        /*
         this.terminated = new nachos.threads.Semaphore(0);
         this.counter = 0;
-
+        */
         if (currentThread != null) {
             tcb = new TCB();
         } else {
@@ -202,12 +206,24 @@ public class KThread {
 
         currentThread.status = statusFinished;
 
-        // For Q1
+        /**
+         * For Problem 1
+         */
+        boolean inStatus = Machine.interrupt().disable();
+        KThread thd = currentThread.waitList.nextThread();
+        while (thd != null) {
+            thd.ready();
+            thd = currentThread.waitList.nextThread();
+        }
+        Machine.interrupt().restore(inStatus);
+
+        /*
         boolean intStatus = Machine.interrupt().disable();
         for (int i = 0; i != currentThread.counter; i++) {
             currentThread.terminated.V();
         }
         Machine.interrupt().restore(intStatus);
+        */
 
         sleep();
     }
@@ -290,7 +306,18 @@ public class KThread {
     public void join() {
         Lib.debug(dbgThread, "Joining to thread: " + toString());
 
-        // For Q1
+        /**
+         * For Problem 1
+         */
+        boolean intStatus = Machine.interrupt().disable();
+        Lib.assertTrue(this != currentThread);
+        if (status != statusFinished) {
+            waitList.waitForAccess(currentThread);
+            currentThread.sleep();
+        }
+        Machine.interrupt().restore(intStatus);
+        /**
+         * Old version
         Lib.assertTrue(this != currentThread);
         if (status != statusFinished) {
             if (terminated != null) {
@@ -298,6 +325,7 @@ public class KThread {
                 terminated.P();
             }
         }
+         */
     }
 
     /**
@@ -522,4 +550,14 @@ public class KThread {
     private static KThread currentThread = null;
     private static KThread toBeDestroyed = null;
     private static KThread idleThread = null;
+
+    /**
+     * For Problem 1
+     */
+    private ThreadQueue waitList;
+    /*
+    private final nachos.threads.Semaphore terminated;
+    private int counter;
+    */
+
 }
