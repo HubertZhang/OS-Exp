@@ -5,6 +5,8 @@ import nachos.machine.*;
 import java.util.TreeSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.LinkedList;
 
 /**
  * A scheduler that chooses threads based on their priorities.
@@ -115,7 +117,7 @@ public class PriorityScheduler extends Scheduler {
      * @param    thread    the thread whose scheduling state to return.
      * @return the scheduling state of the specified thread.
      */
-    protected ThreadState getThreadState(KThread thread) {
+    protected static ThreadState getThreadState(KThread thread) {
         if (thread.schedulingState == null)
             thread.schedulingState = new ThreadState(thread);
 
@@ -126,8 +128,20 @@ public class PriorityScheduler extends Scheduler {
      * A <tt>ThreadQueue</tt> that sorts threads by priority.
      */
     protected class PriorityQueue extends ThreadQueue {
+        public class ListNode {
+            public ThreadState val;
+            public ListNode next;
+            public ListNode(ThreadState val, ListNode next){
+                this.val = val; this.next = next;
+            }
+        }
+
         PriorityQueue(boolean transferPriority) {
             this.transferPriority = transferPriority;
+            threads = new ListNode[priorityMaximum - priorityMinimum +1];
+            for(int i=0; i<threads.length; i++){
+                threads[i] = new ListNode(null, null);
+            }
         }
 
         public void waitForAccess(KThread thread) {
@@ -141,9 +155,28 @@ public class PriorityScheduler extends Scheduler {
         }
 
         public KThread nextThread() {
-            Lib.assertTrue(Machine.interrupt().disabled());
-            // implement me
-            return null;
+            if(lockholder != null){
+                if(transferPriority) for(int i=0; i<counts.length; i++) lockholder.counts[i] -= counts[i];
+                lockholder = null;
+            }
+            ThreadState ret = null;
+            for(int i=threads.length-1; i>=0; i--){
+                if(threads[i].next != null){
+                    ListNode prnt = threads[i], cur = prnt.next;
+                    for(; cur.next != null; prnt = cur, cur = cur.next);
+                    ret = cur.val; prnt.next = null;
+                    for(int j=0; j<threads.length; j++){
+                        counts[j] -= ret.counts[j];
+                        if(transferPriority) ret.counts[j] += counts[j];
+                    }
+                    break;
+                }
+            }
+            if(ret == null) return null;
+
+            ret.queue = null;
+            ret.acquire(this);
+            return ret.thread;
         }
 
         /**
@@ -155,6 +188,11 @@ public class PriorityScheduler extends Scheduler {
          */
         protected ThreadState pickNextThread() {
             // implement me
+            for(int i=threads.length-1; i>=0; i--){
+                if(threads[i].next!=null){
+                    return threads[i].val;
+                }
+            }
             return null;
         }
 
@@ -163,11 +201,31 @@ public class PriorityScheduler extends Scheduler {
             // implement me (if you want)
         }
 
+        public void add(ThreadState node){
+            // for(int i=0; i<counts.length; i++) counts[i] += node.counts[i];
+            int prio = node.getEffectivePriority();
+            ListNode newnode = new ListNode(node, threads[prio].next);
+            threads[prio].next = newnode;
+        }
+
+        public void swap(int oldval, int newval, ThreadState thread){
+            ListNode prnt = threads[oldval];
+            ListNode cur = threads[oldval].next;
+            Lib.assertTrue(cur != null);
+            for(; cur.val != thread; prnt = cur, cur = cur.next);
+            prnt.next = cur.next;
+            cur.next = threads[newval].next; threads[newval].next = cur;
+        }
+
         /**
          * <tt>true</tt> if this queue should transfer priority from waiting
          * threads to the owning thread.
          */
+        private ListNode[] threads;
+        public int[] counts = new int[priorityMaximum - priorityMinimum +1];
+
         public boolean transferPriority;
+        public ThreadState lockholder = null;
     }
 
     /**
@@ -177,16 +235,18 @@ public class PriorityScheduler extends Scheduler {
      *
      * @see    nachos.threads.KThread#schedulingState
      */
-    protected class ThreadState {
+
+    protected static class ThreadState {
         /**
          * Allocate a new <tt>ThreadState</tt> object and associate it with the
          * specified thread.
          *
          * @param    thread    the thread this state belongs to.
          */
+
         public ThreadState(KThread thread) {
             this.thread = thread;
-
+            priority = 0; counts[0] = 1;
             setPriority(priorityDefault);
         }
 
@@ -206,7 +266,11 @@ public class PriorityScheduler extends Scheduler {
          */
         public int getEffectivePriority() {
             // implement me
-            return priority;
+            // update effectivePriority each-time
+            for(int i=counts.length-1; i>0; i--){
+                if(counts[i] > 0) return i;
+            }
+            return 0;
         }
 
         /**
@@ -215,12 +279,28 @@ public class PriorityScheduler extends Scheduler {
          * @param    priority    the new priority.
          */
         public void setPriority(int priority) {
-            if (this.priority == priority)
-                return;
-
+            int old = this.priority;
             this.priority = priority;
 
-            // implement me
+            ThreadState cur = this;
+            while(cur != null){
+                PriorityQueue Q = cur.queue;
+                if(Q == null) {
+                    cur.counts[old]--; cur.counts[priority]++;
+                    break;
+                }
+                else {
+                    Q.counts[old]--; Q.counts[priority]++;
+                    int oldval = cur.getEffectivePriority();
+                    cur.counts[old]--; cur.counts[priority]++;
+                    int newval = cur.getEffectivePriority();
+                    if(oldval != newval) Q.swap(oldval, newval, cur);
+                    if(Q.transferPriority){
+                        cur = Q.lockholder;
+                    }
+                    else break;
+                }
+            }
         }
 
         /**
@@ -236,6 +316,31 @@ public class PriorityScheduler extends Scheduler {
          */
         public void waitForAccess(PriorityQueue waitQueue) {
             // implement me
+            queue = waitQueue;
+            // come-back to the waitQueue
+            if(this == waitQueue.lockholder){
+                waitQueue.lockholder = null;
+                if(waitQueue.transferPriority) for(int i=0; i<counts.length; i++) counts[i] -= waitQueue.counts[i];
+            }
+            waitQueue.add(this);
+
+            PriorityQueue Q = queue;
+            while(Q != null){
+                for(int i=0; i<counts.length; i++) Q.counts[i] += counts[i];
+                ThreadState cur = Q.lockholder;
+                if(cur == null || !Q.transferPriority) break;
+                else {
+                    Q = cur.queue;
+                    if(Q == null){
+                        for(int i=0; i<counts.length; i++) cur.counts[i] += counts[i];
+                        break;
+                    }
+                    int oldval = cur.getEffectivePriority();
+                    for(int i=0; i<counts.length; i++) cur.counts[i] += counts[i];
+                    int newval = cur.getEffectivePriority();
+                    if(oldval != newval) Q.swap(oldval, newval, cur);
+                }
+            }
         }
 
         /**
@@ -250,6 +355,7 @@ public class PriorityScheduler extends Scheduler {
          */
         public void acquire(PriorityQueue waitQueue) {
             // implement me
+            waitQueue.lockholder = this;
         }
 
         /**
@@ -260,5 +366,52 @@ public class PriorityScheduler extends Scheduler {
          * The priority of the associated thread.
          */
         protected int priority;
+
+        public PriorityQueue queue;
+        public int[] counts = new int[priorityMaximum - priorityMinimum + 1];
+    }
+
+    private static class PingTest implements Runnable {
+        PingTest(int which) {
+            this.which = which;
+        }
+
+        public void run() {
+            for (int i = 0; i < 5; i++) {
+                System.out.println("*** thread " + which + " looped "
+                        + i + " times");
+                KThread.currentThread().yield();
+            }
+        }
+
+        private int which;
+    }
+
+    public static void selfTest(){
+        System.out.println("Begin task5 test");
+        KThread hi = new KThread(new Runnable() {
+            public void run(){
+                KThread lo = new KThread(new PingTest(11)).setName("low priority");
+                getThreadState(lo).setPriority(0);
+                lo.fork();
+                lo.join();
+                for (int i = 0; i < 5; i++) {
+                    System.out.println("*** thread " + 0 + " looped "
+                            + i + " times");
+                    KThread.currentThread().yield();
+                }
+            }
+        }).setName("high priority");
+        getThreadState(hi).setPriority(7);
+        KThread[] mids = new KThread[10];
+        for(int i=0; i<10; i++) {
+            mids[i] = new KThread(new PingTest(i+1)).setName("mid priority");
+            getThreadState(mids[i]).setPriority(4);
+        }
+        hi.fork();
+        for(int i=0; i<10; i++) mids[i].fork();
+        hi.join();
+        for(int i=0; i<10; i++) mids[i].join();
+        System.out.println("End task5 test");
     }
 }
