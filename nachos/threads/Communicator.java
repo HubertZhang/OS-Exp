@@ -44,7 +44,7 @@ public class Communicator {
         lockCntr.acquire();
 
         while (flag_s) {
-            System.out.println("Speaker sleep on cond_s.\n");
+            System.out.println("Speaker sleep on cond_s.");
             cond_s.sleep();
         }
 
@@ -55,7 +55,7 @@ public class Communicator {
         }
         else {
             wait_s = true;
-            System.out.println("Speaker sleep on cond\n");
+            System.out.println("Speaker sleep on cond");
             cond.sleep();
             cond.wake();
             wait_s = false;
@@ -85,7 +85,7 @@ public class Communicator {
         lockCntr.acquire();
 
         while (flag_l) {
-            System.out.println("Listener sleep on cond_l.\n");
+            System.out.println("Listener sleep on cond_l.");
             cond_l.sleep();
         }
 
@@ -98,7 +98,7 @@ public class Communicator {
         }
         else {
             wait_l = true;
-            System.out.println("Listener sleep on cond.\n");
+            System.out.println("Listener sleep on cond.");
             cond.sleep();
             wait_l = false;
         }
@@ -261,6 +261,44 @@ public class Communicator {
             thd_listeners.get(i).join();
         }
         System.out.print("Communicator tests #8 finishes.\n");
+
+        // lslslslsls with yield
+        System.out.print("Communicator tests #9 begin!\n");
+        thd_listeners = new Vector<KThread>();
+        thd_speakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++){
+            thd_listeners.add(new KThread(new Listener(channel, i)));
+            thd_speakers.add(new KThread(new Speaker(channel, i)));
+        }
+        for (int i = 0; i < 5; i++){
+            thd_listeners.get(i).fork();
+            thd_speakers.get(i).fork();
+            KThread.yield();
+        }
+        for (int i = 0; i < 5; i++){
+            thd_listeners.get(i).join();
+            thd_speakers.get(i).join();
+        }
+        System.out.print("Communicator tests #9 finishes.\n");
+
+        // slslslslsl with yield
+        System.out.print("Communicator tests #10 begin!\n");
+        thd_listeners = new Vector<KThread>();
+        thd_speakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++){
+            thd_listeners.add(new KThread(new Listener(channel, i)));
+            thd_speakers.add(new KThread(new Speaker(channel, i)));
+        }
+        for (int i = 0; i < 5; i++){
+            thd_speakers.get(i).fork();
+            thd_listeners.get(i).fork();
+            KThread.yield();
+        }
+        for (int i = 0; i < 5; i++){
+            thd_speakers.get(i).join();
+            thd_listeners.get(i).join();
+        }
+        System.out.print("Communicator tests #10 finishes.\n");
     }
 
     private static class Speaker implements Runnable{

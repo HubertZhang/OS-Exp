@@ -125,7 +125,6 @@ public class Condition2 {
             k.fork();
         for (KThread k: thd_wakers) {
             k.fork();
-            KThread.yield();
         }
         for (KThread k: thd_sleepers)
             k.join();
@@ -133,12 +132,36 @@ public class Condition2 {
             k.join();
         System.out.println("Condition variable test #2 end.");
 
-        // wsw
+        // ssssswwwww with yield
         lock = new Lock();
         condValue = new ConditionValue(0);
         cond = new Condition2(lock);
 
         System.out.println("Condition variable test #3 begin.");
+        thd_sleepers = new Vector<KThread>();
+        thd_wakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++) {
+            thd_sleepers.add(new KThread(new Sleeper(cond, lock, condValue, i)));
+            thd_wakers.add(new KThread(new Waker(cond, lock, condValue, i)));
+        }
+        for (KThread k: thd_sleepers)
+            k.fork();
+        for (KThread k: thd_wakers) {
+            k.fork();
+            KThread.yield();
+        }
+        for (KThread k: thd_sleepers)
+            k.join();
+        for (KThread k: thd_wakers)
+            k.join();
+        System.out.println("Condition variable test #3 end.");
+
+        // wsw
+        lock = new Lock();
+        condValue = new ConditionValue(0);
+        cond = new Condition2(lock);
+
+        System.out.println("Condition variable test #4 begin.");
         thd_sleeper = new KThread(new Sleeper(cond, lock, condValue, 1));
         KThread thd_waker1 = new KThread(new Waker(cond, lock, condValue,1));
         KThread thd_waker2 = new KThread(new Waker(cond, lock, condValue,2));
@@ -148,7 +171,52 @@ public class Condition2 {
         thd_waker1.join();
         thd_sleeper.join();
         thd_waker2.join();
-        System.out.println("Condition variable test #3 end.");
+        System.out.println("Condition variable test #4 end.");
+
+        // swswswswsw
+        lock = new Lock();
+        condValue = new ConditionValue(0);
+        cond = new Condition2(lock);
+
+        System.out.println("Condition variable test #5 begin.");
+        thd_sleepers = new Vector<KThread>();
+        thd_wakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++) {
+            thd_sleepers.add(new KThread(new Sleeper(cond, lock, condValue, i)));
+            thd_wakers.add(new KThread(new Waker(cond, lock, condValue, i)));
+        }
+        for (int i = 0; i < 5; i++){
+            thd_sleepers.get(i).fork();
+            thd_wakers.get(i).fork();
+        }
+        for (int i = 0; i < 5; i++){
+            thd_sleepers.get(i).join();
+            thd_wakers.get(i).join();
+        }
+        System.out.println("Condition variable test #5 end.");
+
+        // swswswswsw with yield
+        lock = new Lock();
+        condValue = new ConditionValue(0);
+        cond = new Condition2(lock);
+
+        System.out.println("Condition variable test #6 begin.");
+        thd_sleepers = new Vector<KThread>();
+        thd_wakers = new Vector<KThread>();
+        for (int i = 0; i < 5; i++) {
+            thd_sleepers.add(new KThread(new Sleeper(cond, lock, condValue, i)));
+            thd_wakers.add(new KThread(new Waker(cond, lock, condValue, i)));
+        }
+        for (int i = 0; i < 5; i++){
+            thd_sleepers.get(i).fork();
+            thd_wakers.get(i).fork();
+            KThread.yield();
+        }
+        for (int i = 0; i < 5; i++){
+            thd_sleepers.get(i).join();
+            thd_wakers.get(i).join();
+        }
+        System.out.println("Condition variable test #6 end.");
     }
 
     private static class ConditionValue {
@@ -183,14 +251,14 @@ public class Condition2 {
             Lib.debug(dbgThread, "Sleeper " + which + " enters critical section.");
             System.out.print("Sleeper " + which + " enters critical section.\n");
 
-            while(value.get() < 1) {
+            //while(value.get() < 1) {
                 Lib.debug(dbgThread, "Sleeper " + which + " hang up.");
                 System.out.print("Sleeper " + which + " hang up.\n");
                 cond.sleep();
                 Lib.debug(dbgThread, "Sleeper " + which + " awaken with value=" + value.get());
                 System.out.print("Sleeper " + which + " awaken with value=" + value.get() + "\n");
-            }
-
+            //}
+            //value.set(0);
             Lib.debug(dbgThread, "Sleeper " + which + " exits critical section with value=" + value.get());
             System.out.print("Sleeper " + which + " exits critical section with value=" + value.get() + "\n");
             conditionLock.release();
@@ -218,7 +286,7 @@ public class Condition2 {
             lock.acquire();
             Lib.debug(dbgThread, "Waker " + which + " enters critical section.");
             System.out.print("Waker " + which + " enters critical section.\n");
-            value.set(2);
+            //value.set(2);
             cond.wake();
             Lib.debug(dbgThread, "Waker " + which + " exits critical section with value=" + value.get());
             System.out.print("Waker " + which + " exits critical section with value=." + value.get() + "\n");

@@ -486,9 +486,9 @@ public class KThread {
         System.out.print("Condition2 Tests end\n");
 
         System.out.print('\n');
-        System.out.println("Communicator tests begin.");
-        //Communicator.selfTest();
-        System.out.println("Communicator tests over.");
+//        System.out.println("Communicator tests begin.");
+//        Communicator.selfTest();
+//        System.out.println("Communicator tests over.");
     }
 
     private static final char dbgThread = 't';
