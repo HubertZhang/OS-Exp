@@ -256,5 +256,4 @@ public class Boat {
         bg.AdultRideToMolokai();
         bg.ChildRideToMolokai();
     }
-
 }

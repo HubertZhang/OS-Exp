@@ -495,14 +495,27 @@ public class KThread {
 
         System.out.println("Begin join test.");
         KThread kid = new KThread(new JoinTest()).setName("kid thread");
+        PriorityScheduler.getThreadState(kid).setPriority(0);
         KThread joiner_1 = new KThread(new Joiner(kid, 1)).setName("joiner 1");
         KThread joiner_2 = new KThread(new Joiner(kid, 2)).setName("joiner 2");
+        PriorityScheduler.getThreadState(joiner_1).setPriority(1);
+        PriorityScheduler.getThreadState(joiner_2).setPriority(4);
+
+        KThread[] mids = new KThread[10];
+        for(int i=0; i<10; i++) {
+            mids[i] = new KThread(new PingTest(i+1)).setName("mid priority");
+            PriorityScheduler.getThreadState(mids[i]).setPriority(3);
+        }
 
         joiner_1.fork();
         joiner_2.fork();
         kid.fork();
+        for(int i=0; i<10; i++) mids[i].fork();
+
         joiner_1.join();
         joiner_2.join();
+        for(int i=0; i<10; i++) mids[i].join();
+
         System.out.println("End join test.");
 
         System.out.println("Begin join");
