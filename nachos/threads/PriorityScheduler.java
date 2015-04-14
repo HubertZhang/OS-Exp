@@ -204,15 +204,15 @@ public class PriorityScheduler extends Scheduler {
         public void add(ThreadState node){
             // for(int i=0; i<counts.length; i++) counts[i] += node.counts[i];
             int prio = node.getEffectivePriority();
-            ListNode newnode = new ListNode(node, threads[prio].next);
-            threads[prio].next = newnode;
+            threads[prio].next = new ListNode(node, threads[prio].next);
         }
 
         public void swap(int oldval, int newval, ThreadState thread){
             ListNode prnt = threads[oldval];
             ListNode cur = threads[oldval].next;
             Lib.assertTrue(cur != null);
-            for(; cur.val != thread; prnt = cur, cur = cur.next);
+            for(; cur != null && cur.val != thread; prnt = cur, cur = cur.next);
+            Lib.assertTrue(cur != null && cur.val == thread);
             prnt.next = cur.next;
             cur.next = threads[newval].next; threads[newval].next = cur;
         }
@@ -246,8 +246,8 @@ public class PriorityScheduler extends Scheduler {
 
         public ThreadState(KThread thread) {
             this.thread = thread;
-            priority = 0; counts[0] = 1;
-            setPriority(priorityDefault);
+            priority = priorityDefault; counts[priorityDefault] = 1;
+            // setPriority(priorityDefault);
         }
 
         /**
@@ -279,11 +279,12 @@ public class PriorityScheduler extends Scheduler {
          * @param    priority    the new priority.
          */
         public void setPriority(int priority) {
+            if(priority == this.priority) return;
             int old = this.priority;
             this.priority = priority;
 
             ThreadState cur = this;
-            while(cur != null){
+            do{
                 PriorityQueue Q = cur.queue;
                 if(Q == null) {
                     cur.counts[old]--; cur.counts[priority]++;
@@ -298,7 +299,7 @@ public class PriorityScheduler extends Scheduler {
                     if(Q.transferPriority) cur = Q.lockholder;
                     else break;
                 }
-            }
+            }while(cur != this);
         }
 
         /**
@@ -326,7 +327,7 @@ public class PriorityScheduler extends Scheduler {
             while(Q != null){
                 for(int i=0; i<counts.length; i++) Q.counts[i] += counts[i];
                 ThreadState cur = Q.lockholder;
-                if(cur == null || !Q.transferPriority) break;
+                if(cur == null || !Q.transferPriority || cur == this) break;
                 else {
                     Q = cur.queue;
                     if(Q == null){
@@ -406,40 +407,43 @@ public class PriorityScheduler extends Scheduler {
     }
 
     private static class GetLock implements Runnable {
-        public GetLock(Lock lock, int prio){this.lock = lock; this.prio = prio;}
+        public GetLock(Lock lock, Lock hislock){this.lock = lock; this.hlock = hislock;}
 
         public void run(){
-            getThreadState(KThread.currentThread()).setPriority(prio);
             lock.acquire();
-            for(int i=0; i<5; i++){
-                System.out.println(KThread.currentThread().getName() + " looped " + i + " times");
-                KThread.currentThread().yield();
-            }
-            lock.release();
+            KThread.yield();
+            hlock.acquire();
         }
 
         private Lock lock;
-        private int prio;
+        private Lock hlock;
+    }
+
+    private static class JoinThis implements Runnable{
+        public JoinThis(Lock lock, KThread thd){
+            this.thd = thd; lk = lock;
+        }
+
+        public void run(){
+            lk.acquire();
+            thd.join();
+        }
+
+        private Lock lk;
+        private KThread thd;
     }
 
     public static void selfTest(){
         System.out.println("Begin task5 test");
-        Lock lock = new Lock();
-        KThread hi = new KThread(new GetLock(lock, 7)).setName("high priority");
-        KThread lo = new KThread(new GetLock(lock, 0)).setName("low priority");
-        getThreadState(hi).setPriority(7);
-        getThreadState(lo).setPriority(7);
-        KThread[] mids = new KThread[10];
-        for(int i=0; i<10; i++) {
-            mids[i] = new KThread(new PingTest(i+1)).setName("mid priority");
-            getThreadState(mids[i]).setPriority(4);
-        }
-        lo.fork();
-        hi.fork();
-        for(int i=0; i<10; i++) mids[i].fork();
-        lo.join();
-        hi.join();
-        for(int i=0; i<10; i++) mids[i].join();
+
+        Lock lock0 = new Lock(); Lock lock1 = new Lock();
+        KThread join0 = new KThread().setName("thread 0");
+        KThread join1 = new KThread().setName("thread 1");
+        join0.setTarget(new GetLock(lock0, lock1));
+        join1.setTarget(new GetLock(lock1, lock0));
+
+        join0.fork(); join1.fork();
+
         System.out.println("End task5 test");
     }
 }
