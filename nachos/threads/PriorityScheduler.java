@@ -428,16 +428,19 @@ public class PriorityScheduler extends Scheduler {
     }
 
     private static class GetLock implements Runnable {
-        public GetLock(Lock lock, Lock hislock){this.lock = lock; this.hlock = hislock;}
+        public GetLock(Lock lock, int prio){this.lock = lock; this.prio = prio;}
 
         public void run(){
+            getThreadState(KThread.currentThread()).setPriority(prio);
             lock.acquire();
-            KThread.yield();
-            hlock.acquire();
+            for (int i = 0; i < 10; i ++){
+                System.out.println("inner loop "+i);
+                KThread.yield();
+            }
         }
 
         private Lock lock;
-        private Lock hlock;
+        private int prio;
     }
 
     private static class JoinThis implements Runnable{
@@ -481,6 +484,7 @@ public class PriorityScheduler extends Scheduler {
         System.out.println("priority scheduling test #2 end.");
 
         // get lock test
+        /*
         System.out.println("priority scheduling test #3 begin.");
         Lock lock = new Lock();
         KThread hi = new KThread(new GetLock(lock, 7)).setName("high priority");
@@ -499,16 +503,16 @@ public class PriorityScheduler extends Scheduler {
         hi.join();
         for(int i=0; i<10; i++) mids[i].join();
         System.out.println("priority scheduling test #3 end.");
-        
+
+
         //lock
         System.out.println("priority scheduling test #4 begin.");
         Lock lock0 = new Lock(); Lock lock1 = new Lock();
         KThread join0 = new KThread().setName("thread 0");
         KThread join1 = new KThread().setName("thread 1");
-        join0.setTarget(new GetLock(lock0, lock1));
-        join1.setTarget(new GetLock(lock1, lock0));
         join0.fork(); join1.fork();
         System.out.println("priority scheduling test #4 end.");
         System.out.println("End task5 test");
+        */
     }
 }
