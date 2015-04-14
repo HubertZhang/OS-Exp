@@ -2,6 +2,8 @@ package nachos.threads;
 
 import nachos.ag.BoatGrader;
 
+import java.util.Random;
+
 public class Boat {
     static BoatGrader bg;
 
@@ -33,6 +35,14 @@ public class Boat {
         System.out.println("\n***Testing Boats with 3 children, 3 adults***");
         begin(3, 3, b);
         System.out.println("***Testing Boats with 3 children, 3 adults finished***");
+
+        System.out.println("\n***Testing Boats with 0 children, 1 adults***");
+        begin(1, 0, b);
+        System.out.println("***Testing Boats with 0 children, 1 adults finished***");
+
+        System.out.println("\n***Testing Boats with 2 children, 30 adults***");
+        begin(30, 2, b);
+        System.out.println("***Testing Boats with 2 children, 30 adults finished***");
     }
 
     public static void begin(int adults, int children, BoatGrader b) {
@@ -41,6 +51,7 @@ public class Boat {
         bg = b;
 
         // Instantiate global variables here
+        Random random = new Random();
         positionBoat = positionOahu;
         lockForBoat = new Lock();
 
@@ -67,29 +78,27 @@ public class Boat {
                 AdultItinerary();
             }
         };
-        KThread[] childrenThread = new KThread[children];
-
-        KThread[] adultsThread = new KThread[adults];
-        for (int i = 0; i < adults; i++) {
-            adultsThread[i] = new KThread(adultR);
-            adultsThread[i].setName("Adult " + i);
-            adultsThread[i].fork();
+        KThread[] threads = new KThread[children+adults];
+        int sum = adults+children;
+        for (int i = 0; i < sum; i++) {
+            if (random.nextInt(adults+children)<adults) {
+                threads[i] = new KThread(adultR);
+                threads[i].setName("Adult " + i);
+                adults--;
+            } else {
+                threads[i] = new KThread(childR);
+                threads[i].setName("Child " + i);
+                children--;
+            }
         }
 
-        for (int i = 0; i < children; i++) {
-            childrenThread[i] = new KThread(childR);
-            childrenThread[i].setName("Child " + i);
-            childrenThread[i].fork();
+        for (int i = 0; i < sum; i++) {
+            threads[i].fork();
         }
 
-        for (int i = 0; i < children; i++) {
-            childrenThread[i].join();
+        for (int i = 0; i < sum; i++) {
+            threads[i].join();
         }
-
-        for (int i = 0; i < adults; i++) {
-            adultsThread[i].join();
-        }
-
     }
 
     static void AdultItinerary() {
