@@ -19,6 +19,7 @@ public class ThreadedKernel extends Kernel {
      */
     public void initialize(String[] args) {
         // set scheduler
+        System.out.println("Begin init");
         String schedulerName = Config.getString("ThreadedKernel.scheduler");
         scheduler = (Scheduler) Lib.constructObject(schedulerName);
 
@@ -36,6 +37,7 @@ public class ThreadedKernel extends Kernel {
 
         alarm = new Alarm();
 
+        System.out.println("End init");
         Machine.interrupt().enable();
     }
 

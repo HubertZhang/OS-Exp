@@ -295,9 +295,7 @@ public class PriorityScheduler extends Scheduler {
                     cur.counts[old]--; cur.counts[priority]++;
                     int newval = cur.getEffectivePriority();
                     if(oldval != newval) Q.swap(oldval, newval, cur);
-                    if(Q.transferPriority){
-                        cur = Q.lockholder;
-                    }
+                    if(Q.transferPriority) cur = Q.lockholder;
                     else break;
                 }
             }
@@ -387,29 +385,59 @@ public class PriorityScheduler extends Scheduler {
         private int which;
     }
 
-    public static void selfTest(){
-        System.out.println("Begin task5 test");
-        KThread hi = new KThread(new Runnable() {
-            public void run(){
-                KThread lo = new KThread(new PingTest(11)).setName("low priority");
+    private static class ChainTest implements Runnable {
+        public ChainTest(int len){this.len = len;}
+
+        public void run(){
+            if(len > 0){
+                KThread lo = new KThread(new ChainTest(len-1)).setName("low priority");
                 getThreadState(lo).setPriority(0);
                 lo.fork();
                 lo.join();
-                for (int i = 0; i < 5; i++) {
-                    System.out.println("*** thread " + 0 + " looped "
-                            + i + " times");
-                    KThread.currentThread().yield();
-                }
             }
-        }).setName("high priority");
+            for (int i = 0; i < 5; i++) {
+                System.out.println("*** thread " + (100+len) + " looped "
+                        + i + " times");
+                KThread.currentThread().yield();
+            }
+        }
+
+        private int len;
+    }
+
+    private static class GetLock implements Runnable {
+        public GetLock(Lock lock, int prio){this.lock = lock; this.prio = prio;}
+
+        public void run(){
+            getThreadState(KThread.currentThread()).setPriority(prio);
+            lock.acquire();
+            for(int i=0; i<5; i++){
+                System.out.println(KThread.currentThread().getName() + " looped " + i + " times");
+                KThread.currentThread().yield();
+            }
+            lock.release();
+        }
+
+        private Lock lock;
+        private int prio;
+    }
+
+    public static void selfTest(){
+        System.out.println("Begin task5 test");
+        Lock lock = new Lock();
+        KThread hi = new KThread(new GetLock(lock, 7)).setName("high priority");
+        KThread lo = new KThread(new GetLock(lock, 0)).setName("low priority");
         getThreadState(hi).setPriority(7);
+        getThreadState(lo).setPriority(7);
         KThread[] mids = new KThread[10];
         for(int i=0; i<10; i++) {
             mids[i] = new KThread(new PingTest(i+1)).setName("mid priority");
             getThreadState(mids[i]).setPriority(4);
         }
+        lo.fork();
         hi.fork();
         for(int i=0; i<10; i++) mids[i].fork();
+        lo.join();
         hi.join();
         for(int i=0; i<10; i++) mids[i].join();
         System.out.println("End task5 test");
