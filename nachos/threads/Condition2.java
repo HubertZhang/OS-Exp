@@ -3,6 +3,7 @@ package nachos.threads;
 import nachos.machine.*;
 
 import java.util.LinkedList;
+import java.util.Random;
 import java.util.Vector;
 
 /**
@@ -236,6 +237,31 @@ public class Condition2 {
             k.join();
         thd_allwaker.join();
         System.out.println("Condition variable test #7 end.");
+
+        // random test
+        Random d = new Random();
+        int size = 20;
+        int n = size;
+        int sn = 0, wn = 0;
+        thd_sleepers = new Vector<KThread>();
+        thd_wakers = new Vector<KThread>();
+        for (int i = 0; i < 2*size; i++) {
+            if(n == 0 || (d.nextInt()%2==1)){
+                thd_sleeper = new KThread(new Sleeper(cond, lock, condValue, sn++));
+                thd_sleepers.add(thd_sleeper);
+                n++;
+                thd_sleeper.fork();
+            }
+            else {
+                thd_waker = new KThread(new Waker(cond, lock, condValue, wn++));
+                thd_wakers.add(thd_waker);
+                n--;
+                thd_waker.fork();
+                KThread.yield();
+            }
+        }
+        for (KThread k: thd_sleepers) k.join();
+        for (KThread k: thd_wakers) k.join();
 
         System.out.println("Condition2 Tests end\n");
     }

@@ -3,6 +3,7 @@ package nachos.threads;
 import nachos.machine.*;
 
 import java.util.ArrayList;
+import java.util.Random;
 import java.util.Vector;
 
 /**
@@ -300,6 +301,34 @@ public class Communicator {
             thd_listeners.get(i).join();
         }
         System.out.print("Communicator tests #10 finishes.\n");
+
+        // random test
+        System.out.print("Communicator tests #11 begin!\n");
+        int size = 20;
+        int nl = size, ns = size;
+        Random d = new Random();
+        thd_listeners = new Vector<KThread>();
+        thd_speakers = new Vector<KThread>();
+        for (int i = 0;i < 2*size; i++) {
+            if (ns == 0 || (d.nextInt()%2 == 1 && nl > 0)) {
+                thd_listener = new KThread(new Listener(channel, size - nl));
+                thd_listeners.add(thd_listener);
+                nl--;
+                thd_listener.fork();
+                KThread.yield();
+            }
+            else {
+                thd_speaker = new KThread(new Speaker(channel, size - ns));
+                thd_speakers.add(thd_speaker);
+                ns--;
+                thd_speaker.fork();
+                KThread.yield();
+            }
+        }
+        for (KThread k: thd_listeners) k.join();
+        for (KThread k: thd_speakers) k.join();
+        System.out.print("Communicator tests #11 finishes.\n");
+
         System.out.println("Communicator tests over.\n");
     }
 

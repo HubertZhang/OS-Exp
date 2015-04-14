@@ -2,11 +2,7 @@ package nachos.threads;
 
 import nachos.machine.*;
 
-import java.util.TreeSet;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.LinkedList;
+import java.util.*;
 
 /**
  * A scheduler that chooses threads based on their priorities.
@@ -394,6 +390,7 @@ public class PriorityScheduler extends Scheduler {
                 KThread lo = new KThread(new ChainTest(len-1)).setName("low priority");
                 getThreadState(lo).setPriority(0);
                 lo.fork();
+                KThread.yield();
                 lo.join();
             }
             for (int i = 0; i < 5; i++) {
@@ -404,6 +401,30 @@ public class PriorityScheduler extends Scheduler {
         }
 
         private int len;
+    }
+
+    private static class ChainTestR implements Runnable {
+        public ChainTestR(int prio, KThread lo){
+            this.prio = prio;
+            this.lo = lo;
+        }
+
+        public void run(){
+            System.out.println("thd with prio "+prio+" starts");
+            if(lo != null){
+                lo.join();
+            }
+            else {
+                for (int i = 0; i < 10; i ++){
+                    System.out.println("inner loop "+i);
+                    KThread.yield();
+                }
+            }
+            System.out.println("thd with prio "+prio+" finishes.");
+        }
+        private int prio;
+
+        private KThread lo;
     }
 
     private static class GetLock implements Runnable {
@@ -436,14 +457,58 @@ public class PriorityScheduler extends Scheduler {
     public static void selfTest(){
         System.out.println("Begin task5 test");
 
+        // chain test 10 len
+        System.out.println("priority scheduling test #1 begin.");
+        KThread t = new KThread(new ChainTest(10));
+        t.fork();
+        t.join();
+        System.out.println("priority scheduling test #1 end.");
+
+        // chain test 10 len reversed
+        System.out.println("priority scheduling test #2 begin.");
+        int size = 10;
+        Vector<KThread> thds = new Vector<KThread>();
+        thds.add(new KThread(new ChainTestR(0,null)));
+        for(int i = 1; i < size; i++) {
+            thds.add(new KThread(new ChainTestR(i, thds.get(i - 1))));
+        }
+        for(int i = 0; i < size; i++) {
+            thds.get(i).fork();
+            KThread.yield();
+        }
+        for(KThread k:thds) k.join();
+
+        System.out.println("priority scheduling test #2 end.");
+
+        // get lock test
+        System.out.println("priority scheduling test #3 begin.");
+        Lock lock = new Lock();
+        KThread hi = new KThread(new GetLock(lock, 7)).setName("high priority");
+        KThread lo = new KThread(new GetLock(lock, 0)).setName("low priority");
+        getThreadState(hi).setPriority(7);
+        getThreadState(lo).setPriority(7);
+        KThread[] mids = new KThread[10];
+        for(int i=0; i<10; i++) {
+            mids[i] = new KThread(new PingTest(i+1)).setName("mid priority");
+            getThreadState(mids[i]).setPriority(4);
+        }
+        lo.fork();
+        hi.fork();
+        for(int i=0; i<10; i++) mids[i].fork();
+        lo.join();
+        hi.join();
+        for(int i=0; i<10; i++) mids[i].join();
+        System.out.println("priority scheduling test #3 end.");
+        
+        //lock
+        System.out.println("priority scheduling test #4 begin.");
         Lock lock0 = new Lock(); Lock lock1 = new Lock();
         KThread join0 = new KThread().setName("thread 0");
         KThread join1 = new KThread().setName("thread 1");
         join0.setTarget(new GetLock(lock0, lock1));
         join1.setTarget(new GetLock(lock1, lock0));
-
         join0.fork(); join1.fork();
-
+        System.out.println("priority scheduling test #4 end.");
         System.out.println("End task5 test");
     }
 }
