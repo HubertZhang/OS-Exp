@@ -22,3 +22,8 @@ target
 *.orig
 
 out/
+
+nachos/test/*.o
+nachos/test/*.s
+nachos/test/*.coff
+nachos/test/libnachos.a
