@@ -25,6 +25,9 @@ public class UserProcess {
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
         pageTable = new TranslationEntry[numPhysPages];
+
+        fileDescriptors = new FileDescriptor[maxFDN];
+
         for (int i = 0; i < numPhysPages; i++)
             pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
     }
@@ -334,6 +337,26 @@ public class UserProcess {
         processor.writeRegister(Processor.regA1, argv);
     }
 
+    private class FileDescriptor {
+        int pos;
+        OpenFile openFile;
+        public FileDescriptor(OpenFile openFile) {
+            this.openFile = openFile;
+            this.pos = 0;
+        }
+    }
+
+
+    private int newFileDesc() {
+        int i;
+        for (i = 0;i < 16; i++) {
+            if (fileDescriptors[i] ==null)
+                break;
+        }
+        if (i == 16) return -1;
+        return i;
+    }
+
     /**
      * Handle the halt() system call.
      */
@@ -345,6 +368,33 @@ public class UserProcess {
         return 0;
     }
 
+    private int handleOpen(int a0, boolean create) {
+        String name = readVirtualMemoryString(a0,100);
+        int nfd = newFileDesc();
+        if (nfd != -1)
+            fileDescriptors[nfd] = new FileDescriptor(ThreadedKernel.fileSystem.open(name, create));
+        return nfd;
+    }
+
+    private int handleRead(int fd, int buff, int count) {
+        OpenFile fileDesc = fileDescriptors[fd].openFile;
+        int pos = fileDescriptors[fd].pos;
+        byte[] buffer = new byte[count];
+        int rtn = fileDesc.read(pos, buffer, 0, count);
+        writeVirtualMemory(buff, buffer);
+        return rtn;
+    }
+
+    private int handleWrite(){
+        return 0;
+    }
+
+    private int handleClose(int fd) {
+        FileDescriptor fileDesc = fileDescriptors[fd];
+        fileDesc.openFile.close();
+        fileDescriptors[fd] = null;
+        return 0;
+    }
 
     private static final int
             syscallHalt = 0,
@@ -390,6 +440,16 @@ public class UserProcess {
         switch (syscall) {
             case syscallHalt:
                 return handleHalt();
+            case syscallCreate:
+                return handleOpen(a0, true);
+            case syscallOpen:
+                return handleOpen(a0, false);
+            case syscallRead:
+                return handleRead(a0, a1, a2);
+            case syscallWrite:
+                return handleWrite();
+            case syscallClose:
+                return handleClose(a0);
 
 
             default:
@@ -453,4 +513,7 @@ public class UserProcess {
 
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
+
+    private static int maxFDN = 16;
+    private FileDescriptor[] fileDescriptors;
 }
