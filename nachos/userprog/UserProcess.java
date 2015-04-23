@@ -1,10 +1,14 @@
 package nachos.userprog;
 
+import javafx.util.Pair;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
+import java.util.Collection;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Encapsulates the state of a user process that is not contained in its
@@ -27,10 +31,77 @@ public class UserProcess {
         pageTable = new TranslationEntry[numPhysPages];
 
         fileDescriptors = new FileDescriptor[maxFDN];
+        fileDescriptors[0] = new FileDescriptor(UserKernel.console.openForReading());
+        fileDescriptors[1] = new FileDescriptor(UserKernel.console.openForWriting());
 
         for (int i = 0; i < numPhysPages; i++)
             pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
     }
+
+    static{/*
+        fdMap = new Map<String, Pair<Integer, Integer>>() {
+            @Override
+            public int size() {
+                return 0;
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return false;
+            }
+
+            @Override
+            public boolean containsKey(Object key) {
+                return false;
+            }
+
+            @Override
+            public boolean containsValue(Object value) {
+                return false;
+            }
+
+            @Override
+            public Pair<Integer, Integer> get(Object key) {
+                return null;
+            }
+
+            @Override
+            public Pair<Integer, Integer> put(String key, Pair<Integer, Integer> value) {
+                return null;
+            }
+
+            @Override
+            public Pair<Integer, Integer> remove(Object key) {
+                return null;
+            }
+
+            @Override
+            public void putAll(Map<? extends String, ? extends Pair<Integer, Integer>> m) {
+
+            }
+
+            @Override
+            public void clear() {
+
+            }
+
+            @Override
+            public Set<String> keySet() {
+                return null;
+            }
+
+            @Override
+            public Collection<Pair<Integer, Integer>> values() {
+                return null;
+            }
+
+            @Override
+            public Set<Entry<String, Pair<Integer, Integer>>> entrySet() {
+                return null;
+            }
+        }; */
+    }
+
 
     /**
      * Allocate and return a new process of the correct class. The class name
@@ -377,6 +448,8 @@ public class UserProcess {
     }
 
     private int handleRead(int fd, int buff, int count) {
+        if (fileDescriptors[fd] == null)
+            return -1;
         OpenFile fileDesc = fileDescriptors[fd].openFile;
         int pos = fileDescriptors[fd].pos;
         byte[] buffer = new byte[count];
@@ -385,8 +458,15 @@ public class UserProcess {
         return rtn;
     }
 
-    private int handleWrite(){
-        return 0;
+    private int handleWrite(int fd, int buff, int count){
+        if (fileDescriptors[fd] == null)
+            return -1;
+        OpenFile fileDesc = fileDescriptors[fd].openFile;
+        int pos = fileDescriptors[fd].pos;
+        byte[] buffer = new byte[count];
+        readVirtualMemory(buff, buffer);
+        int rtn = fileDesc.write(pos, buffer, 0, count);
+        return rtn;
     }
 
     private int handleClose(int fd) {
@@ -394,6 +474,13 @@ public class UserProcess {
         fileDesc.openFile.close();
         fileDescriptors[fd] = null;
         return 0;
+    }
+
+    private int handleUnlink(int vpn) {
+        String name = readVirtualMemoryString(vpn, 100);
+        if (ThreadedKernel.fileSystem.remove(name))
+            return 0;
+        return -1;
     }
 
     private static final int
@@ -447,9 +534,11 @@ public class UserProcess {
             case syscallRead:
                 return handleRead(a0, a1, a2);
             case syscallWrite:
-                return handleWrite();
+                return handleWrite(a0, a1, a2);
             case syscallClose:
                 return handleClose(a0);
+            case syscallUnlink:
+                return handleUnlink(a0);
 
 
             default:
@@ -516,4 +605,5 @@ public class UserProcess {
 
     private static int maxFDN = 16;
     private FileDescriptor[] fileDescriptors;
+    //private static Map<String, Pair<Integer, Integer>> fdMap;
 }
