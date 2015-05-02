@@ -638,6 +638,10 @@ public class UserProcess {
             processExitStatusMap.put(this.pid, status);
         }
         processesSet.remove(this.pid);
+        if (processesSet.isEmpty()) {
+            handleHalt();
+            lock.release();
+        }
         cond.wakeAll();
         lock.release();
         return 0;
@@ -651,8 +655,11 @@ public class UserProcess {
         String[] argvs = new String[argc];
         for (int i = 0; i < argc; i++) {
             byte[] address = new byte[4];
-            readVirtualMemory(charPointerPointerToArgv, address, 4 * i, 4);
-            int virtualAddress = address[0] + address[1] << 8 + address[2] << 16 + address[3] << 24;
+            readVirtualMemory(charPointerPointerToArgv+4*i, address, 0, 4);
+            int virtualAddress = (address[3]<<24)&0xff000000|
+                    (address[2]<<16)&0x00ff0000|
+                    (address[1]<< 8)&0x0000ff00|
+                    (address[0]<< 0)&0x000000ff;
             argvs[i] = readVirtualMemoryString(virtualAddress, 256);
         }
         if (nextPid == 0) {
