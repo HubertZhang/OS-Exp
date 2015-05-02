@@ -207,16 +207,25 @@ public class UserProcess {
         Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
 
         byte[] memory = Machine.processor().getMemory();
+        int amount = 0;
 
         int idx = vaddr / pageSize;
-        int b = vaddr - idx * pageSize;
+        int pageOffset = vaddr - idx * pageSize;//page offset
+        int bytesInCurrentPage= Math.min(length, Processor.pageSize-pageOffset);
 
-        if(pageTable[idx].ppn == -1) return 0;
-        int ppn = pageTable[idx].ppn + b;
-        if(ppn < 0 || ppn >= memory.length) return 0;
+        while (length !=0) {
+            Lib.assertTrue(pageTable[idx] != null);
+            int ppn = pageTable[idx].ppn;
+            if(ppn < 0 || ppn >= memory.length) return 0;
 
-        int amount = Math.min(length, memory.length - ppn);
-        System.arraycopy(memory, ppn, data, offset, amount);
+            System.arraycopy(memory, ppn*Processor.pageSize +pageOffset, data, offset, bytesInCurrentPage);
+            amount += bytesInCurrentPage;
+            length -= bytesInCurrentPage;
+            idx ++;
+            pageOffset = 0;
+            bytesInCurrentPage = Math.min(length, Processor.pageSize);
+        }
+
         return amount;
 
         /*
@@ -260,15 +269,26 @@ public class UserProcess {
 
         byte[] memory = Machine.processor().getMemory();
 
+        int amount = 0;
+
         int idx = vaddr / pageSize;
-        int b = vaddr - idx * pageSize;
+        if (pageTable[idx].readOnly) return amount;
+        int pageOffset = vaddr - idx * pageSize;//page offset
+        int bytesInCurrentPage= Math.min(length, Processor.pageSize - pageOffset);
 
-        if(pageTable[idx].ppn == -1) return 0;
-        int ppn = pageTable[idx].ppn + b;
-        if(ppn < 0 || ppn >= memory.length) return 0;
+        while (length !=0) {
+            Lib.assertTrue(pageTable[idx] != null);
+            int ppn = pageTable[idx].ppn;
+            if(ppn < 0 || ppn >= memory.length) return 0;
 
-        int amount = Math.min(length, memory.length - ppn);
-        System.arraycopy(data, offset, memory, ppn, amount);
+            System.arraycopy(data, offset+amount, memory, ppn*Processor.pageSize +pageOffset, bytesInCurrentPage);
+            amount += bytesInCurrentPage;
+            length -= bytesInCurrentPage;
+            idx ++;
+            if (pageTable[idx].readOnly) return amount;
+            pageOffset = 0;
+            bytesInCurrentPage = Math.min(length, Processor.pageSize);
+        }
 
         return amount;
     }
