@@ -23,7 +23,7 @@ public class UserKernel extends ThreadedKernel {
         super.initialize(args);
 
         console = new SynchConsole(Machine.console());
-
+        memLock = new Lock();
         Machine.processor().setExceptionHandler(new Runnable() {
             public void run() {
                 exceptionHandler();
@@ -112,7 +112,7 @@ public class UserKernel extends ThreadedKernel {
 
     private static final int MAX_PPN = 1000000;
 
-    private static Lock memLock = new Lock();
+    private static Lock memLock = null;
     // linked-list of USED memory
     private static MemNode head = new MemNode(-1, null);
 
