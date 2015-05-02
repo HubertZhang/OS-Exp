@@ -34,8 +34,11 @@ public class UserProcess {
         for (int i = 0; i < numPhysPages; i++)
             pageTable[i] = new TranslationEntry(i, i, false, false, false, false);
 
-        pid = nextPid;
-        nextPid++;
+        if (nextPid == 0) {
+            this.pid = 0;
+            nextPid ++;
+            processesSet.add(0);
+        }
     }
 
     static{/*
@@ -656,7 +659,10 @@ public class UserProcess {
             return -1;
         }
         lock.acquire();
+        int returnPid = nextPid;
         UserProcess p = new UserProcess();
+        p.pid = nextPid;
+        nextPid++;
         p.parentPid = this.pid;
         this.childrenSet.add(p.pid);
         processesSet.add(p.pid);
@@ -664,10 +670,10 @@ public class UserProcess {
             this.childrenSet.remove(p.pid);
             processesSet.remove(p.pid);
             nextPid--;
-            return -1;
+            returnPid = -1;
         }
         lock.release();
-        return pid;
+        return returnPid;
     }
 
     private int handleJoin(int pid, int intPointerToStatus) {
