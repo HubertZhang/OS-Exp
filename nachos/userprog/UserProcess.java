@@ -644,6 +644,7 @@ public class UserProcess {
         }
         cond.wakeAll();
         lock.release();
+        KThread.finish();
         return 0;
     }
 
@@ -655,11 +656,8 @@ public class UserProcess {
         String[] argvs = new String[argc];
         for (int i = 0; i < argc; i++) {
             byte[] address = new byte[4];
-            readVirtualMemory(charPointerPointerToArgv+4*i, address, 0, 4);
-            int virtualAddress = (address[3]<<24)&0xff000000|
-                    (address[2]<<16)&0x00ff0000|
-                    (address[1]<< 8)&0x0000ff00|
-                    (address[0]<< 0)&0x000000ff;
+            readVirtualMemory(charPointerPointerToArgv + 4 * i, address, 0, 4);
+            int virtualAddress = Lib.bytesToInt(address, 0);
             argvs[i] = readVirtualMemoryString(virtualAddress, 256);
         }
         if (nextPid == 0) {
@@ -691,15 +689,12 @@ public class UserProcess {
         while(processesSet.contains(pid)) {
             cond.sleep();
         }
-        byte[] statusBytes = new byte[4];
-        for (int i = 0; i < 4; i++) {
-            statusBytes[i] = (byte)(((processExitStatusMap.get(pid))>>(3-i))&0xFF);
-        }
-        writeVirtualMemory(intPointerToStatus, statusBytes);
+        int returnStatus = processExitStatusMap.get(pid);
+        writeVirtualMemory(intPointerToStatus, Lib.bytesFromInt(returnStatus));
         processExitStatusMap.remove(pid);
         childrenSet.remove(pid);
         lock.release();
-        return processExitStatusMap.get(pid);
+        return returnStatus == 0 ? 1 : 0;
     }
 
     private static final int
