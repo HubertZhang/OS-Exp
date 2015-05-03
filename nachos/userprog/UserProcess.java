@@ -368,6 +368,18 @@ public class UserProcess {
         initialSP = numPages * pageSize;
 
         // and finally reserve 1 page for arguments
+        int arguVpn = numPages;
+        int newPage = UserKernel.allocPPN();
+        if (newPage != -1) {
+            pageTable[arguVpn].ppn = newPage;
+            pageTable[arguVpn].used = true;
+            pageTable[arguVpn].readOnly = false;
+            pageTable[arguVpn].valid = true;
+
+        } else {
+            Lib.debug(dbgProcess, "\tinsufficient physical memory");
+            return false;
+        }
         numPages++;
 
         if (!loadSections())
