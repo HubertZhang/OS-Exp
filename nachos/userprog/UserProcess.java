@@ -1,10 +1,15 @@
 package nachos.userprog;
 
+import javafx.util.Pair;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Encapsulates the state of a user process that is not contained in its
@@ -25,9 +30,79 @@ public class UserProcess {
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
         pageTable = new TranslationEntry[numPhysPages];
+
+        fileDescriptors = new FileDescriptor[maxFDN];
+        fileDescriptors[0] = new FileDescriptor(UserKernel.console.openForReading());
+        fileDescriptors[1] = new FileDescriptor(UserKernel.console.openForWriting());
+
         for (int i = 0; i < numPhysPages; i++)
             pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
     }
+
+    static{/*
+        fdMap = new Map<String, Pair<Integer, Integer>>() {
+            @Override
+            public int size() {
+                return 0;
+            }
+
+            @Override
+            public boolean isEmpty() {
+                return false;
+            }
+
+            @Override
+            public boolean containsKey(Object key) {
+                return false;
+            }
+
+            @Override
+            public boolean containsValue(Object value) {
+                return false;
+            }
+
+            @Override
+            public Pair<Integer, Integer> get(Object key) {
+                return null;
+            }
+
+            @Override
+            public Pair<Integer, Integer> put(String key, Pair<Integer, Integer> value) {
+                return null;
+            }
+
+            @Override
+            public Pair<Integer, Integer> remove(Object key) {
+                return null;
+            }
+
+            @Override
+            public void putAll(Map<? extends String, ? extends Pair<Integer, Integer>> m) {
+
+            }
+
+            @Override
+            public void clear() {
+
+            }
+
+            @Override
+            public Set<String> keySet() {
+                return null;
+            }
+
+            @Override
+            public Collection<Pair<Integer, Integer>> values() {
+                return null;
+            }
+
+            @Override
+            public Set<Entry<String, Pair<Integer, Integer>>> entrySet() {
+                return null;
+            }
+        }; */
+    }
+
 
     /**
      * Allocate and return a new process of the correct class. The class name
@@ -334,6 +409,26 @@ public class UserProcess {
         processor.writeRegister(Processor.regA1, argv);
     }
 
+    private class FileDescriptor {
+        int pos;
+        OpenFile openFile;
+        public FileDescriptor(OpenFile openFile) {
+            this.openFile = openFile;
+            this.pos = 0;
+        }
+    }
+
+
+    private int newFileDesc() {
+        int i;
+        for (i = 0;i < 16; i++) {
+            if (fileDescriptors[i] == null)
+                break;
+        }
+        if (i == 16) return -1;
+        return i;
+    }
+
     /**
      * Handle the halt() system call.
      */
@@ -345,6 +440,125 @@ public class UserProcess {
         return 0;
     }
 
+    private int handleOpen(int a0, boolean create) {
+        Lib.debug(dbgProcess, "Handle file open.");
+
+        String name = readVirtualMemoryString(a0,100);
+
+        if (name == null) {
+            Lib.debug(dbgProcess, "Fail to read virtual memory.");
+            return -1;
+        }
+        if (name.length() > 256) {
+            Lib.debug(dbgProcess, "File name is too long.");
+            return -1;
+        }
+        if (delete_list.contains(name)) {
+            Lib.debug(dbgProcess, "Cannot open when there is a pending deletion");
+            return -1;
+        }
+
+        int nfd = newFileDesc();
+        if (nfd != -1)
+            fileDescriptors[nfd] = new FileDescriptor(ThreadedKernel.fileSystem.open(name, create));
+        return nfd;
+    }
+
+
+    private int handleRead(int fd, int buff, int count) {
+        if (fileDescriptors[fd] == null)
+            return -1;
+        OpenFile fileDesc = fileDescriptors[fd].openFile;
+        int pos = fileDescriptors[fd].pos;
+        byte[] buffer = new byte[count];
+        int rtn = fileDesc.read(pos, buffer, 0, count);
+        writeVirtualMemory(buff, buffer);
+        return rtn;
+    }
+
+    private int handleWrite(int fd, int buff, int count){
+        if (fileDescriptors[fd] == null)
+            return -1;
+        OpenFile fileDesc = fileDescriptors[fd].openFile;
+        int pos = fileDescriptors[fd].pos;
+        byte[] buffer = new byte[count];
+        readVirtualMemory(buff, buffer);
+        int rtn = fileDesc.write(pos, buffer, 0, count);
+        return rtn;
+    }
+
+    private int handleClose(int fd) {
+        if (fd < 0 || fd >= maxFDN) {
+            Lib.debug(dbgProcess, "Invalid file descriptor");
+            return -1;
+        }
+        FileDescriptor fileDesc = fileDescriptors[fd];
+
+        if (fileDesc == null) {
+            Lib.debug(dbgProcess, "Null file descriptor got.");
+            return -1;
+        }
+        fileDescriptors[fd] = null;
+
+        boolean flag = false;
+        String file_name = fileDesc.openFile.getName();
+        for (int i = 0; i != maxFDN; i++) {
+            if (fileDescriptors[i] != null && fileDescriptors[i].openFile.getName().equals(file_name)) {
+                flag = true;
+                break;
+            }
+        }
+
+        if (flag) {
+            if (!delete_list.contains(file_name)) {
+                delete_list.add(file_name);
+            }
+        }
+        else {
+            fileDesc.openFile.close();
+            if (delete_list.contains(file_name)) {
+                delete_list.remove(file_name);
+            }
+        }
+
+        // fileDesc.openFile.close();
+        return 0;
+    }
+
+    private int handleUnlink(int vpn) {
+        Lib.debug(dbgProcess, "Handle unlink.");
+        String name = readVirtualMemoryString(vpn, 100);
+        if (name == null) {
+            Lib.debug(dbgProcess, "Read virtual memory fails.");
+            return -1;
+        }
+        if (name.length() > 256) {
+            Lib.debug(dbgProcess, "File name is too long.");
+            return -1;
+        }
+
+        boolean flag = false;
+        for (int i = 0; i < maxFDN; i++) {
+            if (fileDescriptors[i] != null && fileDescriptors[i].openFile.getName().equals(name)) {
+                flag = true;
+                break;
+            }
+        }
+        if (flag) {
+            if (!delete_list.contains(name)) {
+                Lib.debug(dbgProcess, "Posponing deletion.");
+                delete_list.add(name);
+            }
+            return 0;
+        }
+        else {
+            Lib.debug(dbgProcess, "Deletion.");
+            if (ThreadedKernel.fileSystem.remove(name)) {
+                return 0;
+            }
+        }
+        return -1;
+    }
 
     private static final int
             syscallHalt = 0,
@@ -390,6 +604,18 @@ public class UserProcess {
         switch (syscall) {
             case syscallHalt:
                 return handleHalt();
+            case syscallCreate:
+                return handleOpen(a0, true);
+            case syscallOpen:
+                return handleOpen(a0, false);
+            case syscallRead:
+                return handleRead(a0, a1, a2);
+            case syscallWrite:
+                return handleWrite(a0, a1, a2);
+            case syscallClose:
+                return handleClose(a0);
+            case syscallUnlink:
+                return handleUnlink(a0);
 
 
             default:
@@ -453,4 +679,9 @@ public class UserProcess {
 
     private static final int pageSize = Processor.pageSize;
     private static final char dbgProcess = 'a';
+
+    private static int maxFDN = 16;
+    private FileDescriptor[] fileDescriptors;
+    private LinkedList<String> delete_list;
+    //private static Map<String, Pair<Integer, Integer>> fdMap;
 }
