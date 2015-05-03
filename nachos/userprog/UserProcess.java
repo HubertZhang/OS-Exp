@@ -472,6 +472,7 @@ public class UserProcess {
         int pos = fileDescriptors[fd].pos;
         byte[] buffer = new byte[count];
         int rtn = fileDesc.read(pos, buffer, 0, count);
+        fileDescriptors[fd].pos += rtn;
         writeVirtualMemory(buff, buffer);
         return rtn;
     }
@@ -484,6 +485,7 @@ public class UserProcess {
         byte[] buffer = new byte[count];
         readVirtualMemory(buff, buffer);
         int rtn = fileDesc.write(pos, buffer, 0, count);
+        fileDescriptors[fd].pos += rtn;
         return rtn;
     }
 
