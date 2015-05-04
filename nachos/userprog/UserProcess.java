@@ -1,15 +1,11 @@
 package nachos.userprog;
 
-import javafx.util.Pair;
 import nachos.machine.*;
 import nachos.threads.*;
 import nachos.userprog.*;
 
 import java.io.EOFException;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Encapsulates the state of a user process that is not contained in its
@@ -37,6 +33,9 @@ public class UserProcess {
 
         for (int i = 0; i < numPhysPages; i++)
             pageTable[i] = new TranslationEntry(i, i, false, false, false, false);
+
+        pid = nextPid;
+        nextPid++;
     }
 
     static{/*
@@ -630,6 +629,66 @@ public class UserProcess {
         return -1;
     }
 
+    private int handleExit(int status) {
+        lock.acquire();
+        if (processesSet.contains(this.parentPid)) {
+            processExitStatusMap.put(this.pid, status);
+        }
+        processesSet.remove(this.pid);
+        cond.wakeAll();
+        lock.release();
+        return 0;
+    }
+
+    private int handleExec(int charPointerToName, int argc, int charPointerPointerToArgv) {
+        String name = readVirtualMemoryString(charPointerToName, 256);
+        if (argc < 0) {
+            return -1;
+        }
+        String[] argvs = new String[argc];
+        for (int i = 0; i < argc; i++) {
+            byte[] address = new byte[4];
+            readVirtualMemory(charPointerPointerToArgv, address, 4 * i, 4);
+            int virtualAddress = address[0] + address[1] << 8 + address[2] << 16 + address[3] << 24;
+            argvs[i] = readVirtualMemoryString(virtualAddress, 256);
+        }
+        if (nextPid == 0) {
+            return -1;
+        }
+        lock.acquire();
+        UserProcess p = new UserProcess();
+        p.parentPid = this.pid;
+        this.childrenSet.add(p.pid);
+        processesSet.add(p.pid);
+        if (!p.execute(name, argvs)) {
+            this.childrenSet.remove(p.pid);
+            processesSet.remove(p.pid);
+            nextPid--;
+            return -1;
+        }
+        lock.release();
+        return pid;
+    }
+
+    private int handleJoin(int pid, int intPointerToStatus) {
+        if (!childrenSet.contains(pid)) {
+            return -1;
+        }
+        lock.acquire();
+        while(processesSet.contains(pid)) {
+            cond.sleep();
+        }
+        byte[] statusBytes = new byte[4];
+        for (int i = 0; i < 4; i++) {
+            statusBytes[i] = (byte)(((processExitStatusMap.get(pid))>>(3-i))&0xFF);
+        }
+        writeVirtualMemory(intPointerToStatus, statusBytes);
+        processExitStatusMap.remove(pid);
+        childrenSet.remove(pid);
+        lock.release();
+        return processExitStatusMap.get(pid);
+    }
+
     private static final int
             syscallHalt = 0,
             syscallExit = 1,
@@ -674,6 +733,12 @@ public class UserProcess {
         switch (syscall) {
             case syscallHalt:
                 return handleHalt();
+            case syscallExit:
+                return handleExit(a0);
+            case syscallExec:
+                return handleExec(a0, a1, a2);
+            case syscallJoin:
+                return handleJoin(a0, a1);
             case syscallCreate:
                 return handleOpen(a0, true);
             case syscallOpen:
@@ -755,4 +820,17 @@ public class UserProcess {
     private FileDescriptor[] fileDescriptors;
     private LinkedList<String> delete_list;
     //private static Map<String, Pair<Integer, Integer>> fdMap;
+
+    /**
+     * Variables for task 3;
+     */
+    int pid;
+    int parentPid;
+    Set<Integer> childrenSet = new HashSet<Integer>();
+
+    private static int nextPid = 0;
+    private static Lock lock = new Lock();
+    private static Condition cond = new Condition(lock);
+    static Set<Integer> processesSet = new HashSet<Integer>();
+    static Map<Integer, Integer> processExitStatusMap = new HashMap<Integer, Integer>();
 }
