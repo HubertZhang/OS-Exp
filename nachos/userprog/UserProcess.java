@@ -523,7 +523,7 @@ public class UserProcess {
             Lib.debug(dbgProcess, "File name is too long.");
             return -1;
         }
-        if (delete_list.contains(name)) {
+        if (deleteList.contains(name)) {
             Lib.debug(dbgProcess, "Cannot open when there is a pending deletion");
             return -1;
         }
@@ -582,14 +582,14 @@ public class UserProcess {
         }
 
         if (flag) {
-            if (!delete_list.contains(file_name)) {
-                delete_list.add(file_name);
+            if (!deleteList.contains(file_name)) {
+                deleteList.add(file_name);
             }
         }
         else {
             fileDesc.openFile.close();
-            if (delete_list.contains(file_name)) {
-                delete_list.remove(file_name);
+            if (deleteList.contains(file_name)) {
+                deleteList.remove(file_name);
             }
         }
 
@@ -617,9 +617,9 @@ public class UserProcess {
             }
         }
         if (flag) {
-            if (!delete_list.contains(name)) {
+            if (!deleteList.contains(name)) {
                 Lib.debug(dbgProcess, "Posponing deletion.");
-                delete_list.add(name);
+                deleteList.add(name);
             }
             return 0;
         }
@@ -826,7 +826,7 @@ public class UserProcess {
 
     private static int maxFDN = 16;
     private FileDescriptor[] fileDescriptors;
-    private LinkedList<String> delete_list;
+    private LinkedList<String> deleteList = new LinkedList<String>();
     //private static Map<String, Pair<Integer, Integer>> fdMap;
 
     /**
