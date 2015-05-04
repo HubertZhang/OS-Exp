@@ -145,6 +145,16 @@ public class SynchConsole {
             return length;
         }
 
+        @Override
+        public int read(int pos, byte[] buf, int offset, int length) {
+            return read(buf, offset, length);
+        }
+
+        @Override
+        public int write(int pos, byte[] buf, int offset, int length) {
+            return write(buf, offset, length);
+        }
+
         private boolean canRead, canWrite;
     }
 }

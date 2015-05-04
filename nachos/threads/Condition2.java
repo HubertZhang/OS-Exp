@@ -103,8 +103,8 @@ public class Condition2 {
         Condition2 cond = new Condition2(lock);
 
         System.out.println("Condition variable test #1 begin.");
-        KThread thd_sleeper = new KThread(new Sleeper(cond, lock, condValue, 1));
-        KThread thd_waker = new KThread(new Waker(cond, lock, condValue, 1));
+        KThread thd_sleeper = new KThread(new Sleeper(cond, lock, condValue, 1)).setName("sleep");
+        KThread thd_waker = new KThread(new Waker(cond, lock, condValue, 1)).setName("wake");
         thd_sleeper.fork();
         thd_waker.fork();
         thd_sleeper.join();
@@ -241,12 +241,12 @@ public class Condition2 {
         // random test
         Random d = new Random();
         int size = 20;
-        int n = size;
+        int n = 0;
         int sn = 0, wn = 0;
         thd_sleepers = new Vector<KThread>();
         thd_wakers = new Vector<KThread>();
         for (int i = 0; i < 2*size; i++) {
-            if(n == 0 || (d.nextInt()%2==1)){
+            if(n == 0 || (d.nextInt()%2==1 && sn<size)){
                 thd_sleeper = new KThread(new Sleeper(cond, lock, condValue, sn++));
                 thd_sleepers.add(thd_sleeper);
                 n++;
@@ -377,5 +377,4 @@ public class Condition2 {
         private int which;
 
     }
-
 }
