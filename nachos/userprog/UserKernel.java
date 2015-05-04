@@ -102,6 +102,60 @@ public class UserKernel extends ThreadedKernel {
         KThread.currentThread().finish();
     }
 
+    private static class MemNode {
+        public int ppn;
+        public MemNode next;
+        public MemNode(int ppn, MemNode next){
+            this.ppn = ppn; this.next = next;
+        }
+    }
+
+    private static final int MAX_PPN = 1000000;
+
+    private static Lock memLock = new Lock();
+    // linked-list of USED memory
+    private static MemNode head = new MemNode(-1, null);
+
+    // first fit
+    public static int allocPPN(){
+        int ret = -1;
+        memLock.acquire();
+        boolean found = false;
+        MemNode prnt = head;
+        for(MemNode cur = prnt.next; cur != null; prnt = cur, cur = cur.next){
+            if(prnt.ppn+1 < cur.ppn){
+                found = true; ret = prnt.ppn+1;
+                prnt.next = new MemNode(ret, cur);
+                break;
+            }
+        }
+        if(!found){
+            if(prnt.ppn < MAX_PPN){
+                ret = prnt.ppn+1;
+                prnt.next = new MemNode(ret, null);
+            }
+        }
+        memLock.release();
+        // -1 if no free page
+        return ret;
+    }
+
+    // linear search
+    public static boolean recyclPPN(int ppn){
+        boolean ret = false;
+        memLock.acquire();
+        MemNode prnt = head;
+        for(MemNode cur = head.next; cur != null; prnt = cur, cur = cur.next){
+            if(cur.ppn == ppn){
+                ret = true;
+                prnt.next = cur.next;
+                break;
+            }
+        }
+        memLock.release();
+        return ret;
+    }
+
     /**
      * Terminate this kernel. Never returns.
      */

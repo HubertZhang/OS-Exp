@@ -30,6 +30,16 @@ public class UserProcess {
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
         pageTable = new TranslationEntry[numPhysPages];
+        tableSize = numPhysPages;
+        for (int i = 0; i < numPhysPages; i++) {
+            int newPage = UserKernel.allocPPN();
+            if (newPage != -1)
+                pageTable[i] = new TranslationEntry(i, newPage, true, false, false, false);
+            else {
+                tableSize = i;
+                break;
+            }
+        }
 
         fileDescriptors = new FileDescriptor[maxFDN];
         fileDescriptors[0] = new FileDescriptor(UserKernel.console.openForReading());
@@ -208,14 +218,23 @@ public class UserProcess {
 
         byte[] memory = Machine.processor().getMemory();
 
-        // for now, just assume that virtual addresses equal physical addresses
-        if (vaddr < 0 || vaddr >= memory.length)
-            return 0;
+        int idx = vaddr / pageSize;
+        int b = vaddr - idx * pageSize;
 
+        if(pageTable[idx].ppn == -1) return 0;
+        int ppn = pageTable[idx].ppn + b;
+        if(ppn < 0 || ppn >= memory.length) return 0;
+
+        int amount = Math.min(length, memory.length - ppn);
+        System.arraycopy(memory, ppn, data, offset, amount);
+        return amount;
+
+        /*
         int amount = Math.min(length, memory.length - vaddr);
         System.arraycopy(memory, vaddr, data, offset, amount);
 
         return amount;
+        */
     }
 
     /**
@@ -251,12 +270,15 @@ public class UserProcess {
 
         byte[] memory = Machine.processor().getMemory();
 
-        // for now, just assume that virtual addresses equal physical addresses
-        if (vaddr < 0 || vaddr >= memory.length)
-            return 0;
+        int idx = vaddr / pageSize;
+        int b = vaddr - idx * pageSize;
 
-        int amount = Math.min(length, memory.length - vaddr);
-        System.arraycopy(data, offset, memory, vaddr, amount);
+        if(pageTable[idx].ppn == -1) return 0;
+        int ppn = pageTable[idx].ppn + b;
+        if(ppn < 0 || ppn >= memory.length) return 0;
+
+        int amount = Math.min(length, memory.length - ppn);
+        System.arraycopy(data, offset, memory, ppn, amount);
 
         return amount;
     }
@@ -371,9 +393,9 @@ public class UserProcess {
 
             for (int i = 0; i < section.getLength(); i++) {
                 int vpn = section.getFirstVPN() + i;
-
+                assert(vpn < tableSize);
                 // for now, just assume virtual addresses=physical addresses
-                section.loadPage(i, vpn);
+                section.loadPage(i, pageTable[vpn].ppn);
             }
         }
 
@@ -666,6 +688,7 @@ public class UserProcess {
      * This process's page table.
      */
     protected TranslationEntry[] pageTable;
+    protected int tableSize = 0;
     /**
      * The number of contiguous pages occupied by the program.
      */

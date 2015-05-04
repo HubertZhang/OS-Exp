@@ -111,7 +111,8 @@ public class Alarm {
      */
     public void timerInterrupt(){
         long curTime = Machine.timer().getTime();
-        for(; !heap.empty() && heap.peek() <= curTime; ) heap.pop().ready();
+        for(; !heap.empty() && heap.peek() <= curTime;)
+            heap.pop().ready();
     }
 
     /**
@@ -174,7 +175,8 @@ public class Alarm {
             threads[i] = new KThread(new WaitTest(i,1000)).setName("wait thread"+i);
             threads[i].fork();
         }
-        for(int i=0; i<size; i++) threads[i].join();
+        for(int i=0; i<size; i++)
+            threads[i].join();
         System.out.println("alarm test #1 ends.");
 
         // 10 thds wait reverse time

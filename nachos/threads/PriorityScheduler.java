@@ -275,6 +275,7 @@ public class PriorityScheduler extends Scheduler {
          * @param    priority    the new priority.
          */
         public void setPriority(int priority) {
+            if(loop) return;
             if(priority == this.priority) return;
             int old = this.priority;
             this.priority = priority;
@@ -295,7 +296,7 @@ public class PriorityScheduler extends Scheduler {
                     if(Q.transferPriority) cur = Q.lockholder;
                     else break;
                 }
-            }while(cur != this);
+            }while(cur != this && cur != null);
         }
 
         /**
@@ -309,6 +310,19 @@ public class PriorityScheduler extends Scheduler {
          * now waiting on.
          * @see    nachos.threads.ThreadQueue#waitForAccess
          */
+
+        private boolean checkLoop(){
+            ThreadState fast = this, slow = this;
+            while(fast.queue != null && fast.queue.transferPriority && fast.queue.lockholder != null){
+                slow = slow.queue.lockholder;
+                fast = fast.queue.lockholder;
+                if(fast.queue == null || !fast.queue.transferPriority || fast.queue.lockholder == null) break;
+                fast = fast.queue.lockholder;
+                if(fast == slow) return true;
+            }
+            return false;
+        }
+
         public void waitForAccess(PriorityQueue waitQueue) {
             // implement me
             queue = waitQueue;
@@ -318,6 +332,12 @@ public class PriorityScheduler extends Scheduler {
                 if(waitQueue.transferPriority) for(int i=0; i<counts.length; i++) counts[i] -= waitQueue.counts[i];
             }
             waitQueue.add(this);
+
+            if(checkLoop()) {
+                System.out.println("user deadlock");
+                loop = true;
+                return;
+            }
 
             PriorityQueue Q = queue;
             while(Q != null){
@@ -357,6 +377,7 @@ public class PriorityScheduler extends Scheduler {
          * The thread with which this object is associated.
          */
         protected KThread thread;
+        private boolean loop = false;
         /**
          * The priority of the associated thread.
          */
@@ -433,10 +454,11 @@ public class PriorityScheduler extends Scheduler {
         public void run(){
             getThreadState(KThread.currentThread()).setPriority(prio);
             lock.acquire();
-            for (int i = 0; i < 10; i ++){
-                System.out.println("inner loop "+i);
-                KThread.yield();
+            for (int i = 0; i < 5; i ++){
+                System.out.println(KThread.currentThread().getName());
+                KThread.currentThread().yield();
             }
+            lock.release();
         }
 
         private Lock lock;
@@ -484,7 +506,6 @@ public class PriorityScheduler extends Scheduler {
         System.out.println("priority scheduling test #2 end.");
 
         // get lock test
-        /*
         System.out.println("priority scheduling test #3 begin.");
         Lock lock = new Lock();
         KThread hi = new KThread(new GetLock(lock, 7)).setName("high priority");
@@ -503,16 +524,16 @@ public class PriorityScheduler extends Scheduler {
         hi.join();
         for(int i=0; i<10; i++) mids[i].join();
         System.out.println("priority scheduling test #3 end.");
-
-
-        //lock
-        System.out.println("priority scheduling test #4 begin.");
-        Lock lock0 = new Lock(); Lock lock1 = new Lock();
-        KThread join0 = new KThread().setName("thread 0");
-        KThread join1 = new KThread().setName("thread 1");
-        join0.fork(); join1.fork();
-        System.out.println("priority scheduling test #4 end.");
         System.out.println("End task5 test");
-        */
+
+        System.out.println("priority scheduling test #4 begin.");
+        KThread A = new KThread().setName("thd A");
+        KThread B = new KThread().setName("thd B");
+        KThread C = new KThread().setName("thd C");
+        A.setTarget(new ChainTestR(7, B));
+        B.setTarget(new ChainTestR(7, A));
+        C.setTarget(new ChainTestR(7, A));
+        A.fork(); B.fork(); C.fork();
+        System.out.println("priority scheduling test #4 end.");
     }
 }
