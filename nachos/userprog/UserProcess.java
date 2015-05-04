@@ -30,23 +30,13 @@ public class UserProcess {
     public UserProcess() {
         int numPhysPages = Machine.processor().getNumPhysPages();
         pageTable = new TranslationEntry[numPhysPages];
-        tableSize = numPhysPages;
-        for (int i = 0; i < numPhysPages; i++) {
-            int newPage = UserKernel.allocPPN();
-            if (newPage != -1)
-                pageTable[i] = new TranslationEntry(i, newPage, true, false, false, false);
-            else {
-                tableSize = i;
-                break;
-            }
-        }
 
         fileDescriptors = new FileDescriptor[maxFDN];
         fileDescriptors[0] = new FileDescriptor(UserKernel.console.openForReading());
         fileDescriptors[1] = new FileDescriptor(UserKernel.console.openForWriting());
 
         for (int i = 0; i < numPhysPages; i++)
-            pageTable[i] = new TranslationEntry(i, i, true, false, false, false);
+            pageTable[i] = new TranslationEntry(i, i, false, false, false, false);
     }
 
     static{/*
@@ -340,6 +330,20 @@ public class UserProcess {
         initialPC = coff.getEntryPoint();
 
         // next comes the stack; stack pointer initially points to top of it
+        for (int i = 0; i < stackPages; i++) {
+            int vpn = numPages+i;
+            int newPage = UserKernel.allocPPN();
+            if (newPage != -1) {
+                pageTable[vpn].ppn = newPage;
+                pageTable[vpn].used = true;
+                pageTable[vpn].readOnly = false;
+                pageTable[vpn].valid = true;
+
+            } else {
+                Lib.debug(dbgProcess, "\tinsufficient physical memory");
+                return false;
+            }
+        }
         numPages += stackPages;
         initialSP = numPages * pageSize;
 
@@ -393,7 +397,17 @@ public class UserProcess {
 
             for (int i = 0; i < section.getLength(); i++) {
                 int vpn = section.getFirstVPN() + i;
-                assert(vpn < tableSize);
+                int newPage = UserKernel.allocPPN();
+                if (newPage != -1) {
+                    pageTable[vpn].ppn = newPage;
+                    pageTable[vpn].used = true;
+                    pageTable[vpn].readOnly = section.isReadOnly();
+                    pageTable[vpn].valid = true;
+
+                } else {
+                    Lib.debug(dbgProcess, "\tinsufficient physical memory");
+                    return false;
+                }
                 // for now, just assume virtual addresses=physical addresses
                 section.loadPage(i, pageTable[vpn].ppn);
             }
