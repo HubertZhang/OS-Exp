@@ -529,8 +529,16 @@ public class UserProcess {
         }
 
         int nfd = newFileDesc();
-        if (nfd != -1)
+        if (nfd != -1) {
             fileDescriptors[nfd] = new FileDescriptor(ThreadedKernel.fileSystem.open(name, create));
+            if (statusMap.containsKey(name)) {
+                int oldValue = statusMap.get(name);
+                statusMap.put(name, ++oldValue);
+            }
+            else {
+                statusMap.put(name, 1);
+            }
+        }
         return nfd;
     }
 
@@ -572,25 +580,40 @@ public class UserProcess {
         }
         fileDescriptors[fd] = null;
 
-        boolean flag = false;
         String file_name = fileDesc.openFile.getName();
-        for (int i = 0; i != maxFDN; i++) {
-            if (fileDescriptors[i] != null && fileDescriptors[i].openFile.getName().equals(file_name)) {
-                flag = true;
-                break;
-            }
-        }
 
-        if (flag) {
-            if (!deleteList.contains(file_name)) {
-                deleteList.add(file_name);
-            }
+        // boolean flag = false;
+        // for (int i = 0; i != maxFDN; i++) {
+        //     if (fileDescriptors[i] != null && fileDescriptors[i].openFile.getName().equals(file_name)) {
+        //         flag = true;
+        //         break;
+        //     }
+        // }
+
+        if (!statusMap.containsKey(file_name)) {
+            Lib.debug(dbgProcess, "statusMap Key error!");
+            return -1;
         }
-        else {
+        int oldVal = statusMap.get(file_name);
+        statusMap.put(file_name, --oldVal);
+
+        if (statusMap.get(file_name) == 0) {
             fileDesc.openFile.close();
             if (deleteList.contains(file_name)) {
-                deleteList.remove(file_name);
+                Lib.debug(dbgProcess, "Execute postponed unlink operation.");
+                if (ThreadedKernel.fileSystem.remove(file_name)) {
+                    deleteList.remove(file_name);
+                    return 0;
+                }
+                else {
+                    Lib.debug(dbgProcess, "Unlink fails.");
+                    return -1;
+                }
             }
+        }
+        else if (statusMap.get(file_name) < 0) {
+            Lib.debug(dbgProcess, "Wrong status value: MINUS ZERO!");
+            return -1;
         }
 
         // fileDesc.openFile.close();
@@ -609,16 +632,19 @@ public class UserProcess {
             return -1;
         }
 
-        boolean flag = false;
-        for (int i = 0; i < maxFDN; i++) {
-            if (fileDescriptors[i] != null && fileDescriptors[i].openFile.getName().equals(name)) {
-                flag = true;
-                break;
-            }
+        // boolean flag = false;
+        // for (int i = 0; i < maxFDN; i++) {
+        //    if (fileDescriptors[i] != null && fileDescriptors[i].openFile.getName().equals(name)) {
+        //        flag = true;
+        //        break;
+        //    }
+        //  }
+        if (!statusMap.containsKey(name)) {
+            Lib.debug(dbgProcess, "statusMap Key error!");
         }
-        if (flag) {
+        if (statusMap.get(name) > 0) {
             if (!deleteList.contains(name)) {
-                Lib.debug(dbgProcess, "Posponing deletion.");
+                Lib.debug(dbgProcess, "Postponing deletion.");
                 deleteList.add(name);
             }
             return 0;
@@ -826,8 +852,8 @@ public class UserProcess {
 
     private static int maxFDN = 16;
     private FileDescriptor[] fileDescriptors;
-    private LinkedList<String> deleteList = new LinkedList<String>();
-    //private static Map<String, Pair<Integer, Integer>> fdMap;
+    private static LinkedList<String> deleteList = new LinkedList<String>();
+    private static HashMap<String, Integer> statusMap = new HashMap<String, Integer>();
 
     /**
      * Variables for task 3;
