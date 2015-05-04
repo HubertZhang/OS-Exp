@@ -459,6 +459,19 @@ public class UserProcess {
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
+        // unload sections
+        for (int s = 0; s < coff.getNumSections(); s++) {
+            CoffSection section = coff.getSection(s);
+
+            Lib.debug(dbgProcess, "\treleasing " + section.getName()
+                    + " section (" + section.getLength() + " pages)");
+
+            for (int i = 0; i < section.getLength(); i++) {
+                int vpn = section.getFirstVPN() + i;
+                UserKernel.recyclPPN(pageTable[vpn].ppn);
+                pageTable[vpn].ppn = -1;
+            }
+        }
     }
 
     /**
