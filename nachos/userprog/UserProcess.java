@@ -677,6 +677,28 @@ public class UserProcess {
 
     private int handleExit(int status) {
         lock.acquire();
+
+        //dealloc page for arguments
+        UserKernel.recyclPPN(this.pageTable[numPages-1].ppn);
+        numPages --;
+
+        //dealloc page for stack
+        for (int i = 0; i < stackPages; i++) {
+            UserKernel.recyclPPN(this.pageTable[numPages-1-i].ppn);
+        }
+        numPages -= stackPages;
+
+        unloadSections();
+        
+        //deal with opened files
+        for (int i = 0; i < maxFDN; i++) {
+            FileDescriptor fd = fileDescriptors[i];
+            if (fd != null) {
+                fd.openFile.close();
+            }
+        }
+
+        //remove this pid
         if (processesSet.contains(this.parentPid)) {
             processExitStatusMap.put(this.pid, status);
         }
