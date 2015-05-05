@@ -171,10 +171,11 @@ public class UserProcess {
         int bytesRead = readVirtualMemory(vaddr, bytes);
 
         for (int length = 0; length < bytesRead; length++) {
-            if (bytes[length] == 0)
+            if (bytes[length] == 0) {
                 Lib.debug(dbgProcess, "Read virtual memory string: ");
                 Lib.debug(dbgProcess, new String(bytes, 0, length));
                 return new String(bytes, 0, length);
+            }
         }
 
         return null;
@@ -225,6 +226,7 @@ public class UserProcess {
             System.arraycopy(memory, ppn*Processor.pageSize +pageOffset, data, offset, bytesInCurrentPage);
             amount += bytesInCurrentPage;
             length -= bytesInCurrentPage;
+            offset += bytesInCurrentPage;
             idx ++;
             pageOffset = 0;
             bytesInCurrentPage = Math.min(length, Processor.pageSize);
@@ -288,6 +290,7 @@ public class UserProcess {
             System.arraycopy(data, offset+amount, memory, ppn*Processor.pageSize +pageOffset, bytesInCurrentPage);
             amount += bytesInCurrentPage;
             length -= bytesInCurrentPage;
+            offset += bytesInCurrentPage;
             idx ++;
             if (pageTable[idx].readOnly) return amount;
             pageOffset = 0;
