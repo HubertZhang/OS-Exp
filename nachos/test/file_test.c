@@ -2,7 +2,7 @@
 #include "syscall.h"
 
 int main() {
-    int fd = create("hello");
+    int fd = creat("hello");
     printf("File: %d", fd);
     return 0;
 }

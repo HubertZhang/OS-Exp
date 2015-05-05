@@ -536,7 +536,8 @@ public class UserProcess {
         if (nfd != -1) {
             System.out.println("New File descriptor: " + nfd);
             System.out.println("File name: " + name);
-            OpenFile file = UserKernel.fileSystem.open(name, create);
+	    Lib.debug(dbgProcess, "OPenfile" + name);
+          OpenFile file = UserKernel.fileSystem.open(name, create);
             if (file == null) {
                 System.out.println("Cannot open file: fileSystem.open return null.");
                 Lib.debug(dbgProcess, "Cannot open file: fileSystem.open return null.");
