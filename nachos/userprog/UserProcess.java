@@ -513,24 +513,38 @@ public class UserProcess {
     private int handleOpen(int a0, boolean create) {
         Lib.debug(dbgProcess, "Handle file open.");
 
-        String name = readVirtualMemoryString(a0,100);
+        String name = readVirtualMemoryString(a0 ,256);
+        System.out.println("Read file name: " + name);
 
         if (name == null) {
+            System.out.println("Fail to read virtual memory.");
             Lib.debug(dbgProcess, "Fail to read virtual memory.");
             return -1;
         }
         if (name.length() > 256) {
+            System.out.println("File name is too long.");
             Lib.debug(dbgProcess, "File name is too long.");
             return -1;
         }
         if (deleteList.contains(name)) {
+            System.out.println("Cannot open when there is a pending deletion.");
             Lib.debug(dbgProcess, "Cannot open when there is a pending deletion");
             return -1;
         }
 
         int nfd = newFileDesc();
         if (nfd != -1) {
-            fileDescriptors[nfd] = new FileDescriptor(ThreadedKernel.fileSystem.open(name, create));
+            System.out.println("New File descriptor: " + nfd);
+            System.out.println("File name: " + name);
+            OpenFile file = UserKernel.fileSystem.open(name, create);
+            if (file == null) {
+                System.out.println("Cannot open file: fileSystem.open return null.");
+                Lib.debug(dbgProcess, "Cannot open file: fileSystem.open return null.");
+                return -1;
+            }
+
+            fileDescriptors[nfd] = new FileDescriptor(file);
+
             if (statusMap.containsKey(name)) {
                 int oldValue = statusMap.get(name);
                 statusMap.put(name, ++oldValue);
