@@ -171,8 +171,11 @@ public class UserProcess {
         int bytesRead = readVirtualMemory(vaddr, bytes);
 
         for (int length = 0; length < bytesRead; length++) {
-            if (bytes[length] == 0)
+            if (bytes[length] == 0) {
+                // Lib.debug(dbgProcess, "Read virtual memory string: ");
+                // Lib.debug(dbgProcess, new String(bytes, 0, length));
                 return new String(bytes, 0, length);
+            }
         }
 
         return null;
@@ -223,6 +226,7 @@ public class UserProcess {
             System.arraycopy(memory, ppn*Processor.pageSize +pageOffset, data, offset, bytesInCurrentPage);
             amount += bytesInCurrentPage;
             length -= bytesInCurrentPage;
+            offset += bytesInCurrentPage;
             idx ++;
             pageOffset = 0;
             bytesInCurrentPage = Math.min(length, Processor.pageSize);
@@ -286,6 +290,7 @@ public class UserProcess {
             System.arraycopy(data, offset+amount, memory, ppn*Processor.pageSize +pageOffset, bytesInCurrentPage);
             amount += bytesInCurrentPage;
             length -= bytesInCurrentPage;
+            offset += bytesInCurrentPage;
             idx ++;
             if (pageTable[idx].readOnly) return amount;
             pageOffset = 0;
@@ -511,26 +516,36 @@ public class UserProcess {
     }
 
     private int handleOpen(int a0, boolean create) {
-        Lib.debug(dbgProcess, "Handle file open.");
+        Lib.debug(dbgProcess, "handleFileOpen::start");
 
-        String name = readVirtualMemoryString(a0,100);
+        String name = readVirtualMemoryString(a0 ,256);
+        // if (name.length() == 0) {
+        //     System.out.println("Zero-lengthed file name.");
+        // }
 
-        if (name == null) {
-            Lib.debug(dbgProcess, "Fail to read virtual memory.");
+        if (name.length() == 0) {
+            Lib.debug(dbgProcess, "handleFileOpen::Fail to read virtual memory.");
             return -1;
         }
         if (name.length() > 256) {
-            Lib.debug(dbgProcess, "File name is too long.");
+            Lib.debug(dbgProcess, "handleFileOpen::File name is too long.");
             return -1;
         }
         if (deleteList.contains(name)) {
-            Lib.debug(dbgProcess, "Cannot open when there is a pending deletion");
+            Lib.debug(dbgProcess, "handleFileOpen::Cannot open when there is a pending deletion");
             return -1;
         }
 
         int nfd = newFileDesc();
         if (nfd != -1) {
-            fileDescriptors[nfd] = new FileDescriptor(ThreadedKernel.fileSystem.open(name, create));
+            OpenFile file = UserKernel.fileSystem.open(name, create);
+            if (file == null) {
+                Lib.debug(dbgProcess, "handleFileOpen::Cannot open file: fileSystem.open return null.");
+                return -1;
+            }
+
+            fileDescriptors[nfd] = new FileDescriptor(file);
+
             if (statusMap.containsKey(name)) {
                 int oldValue = statusMap.get(name);
                 statusMap.put(name, ++oldValue);
@@ -569,13 +584,13 @@ public class UserProcess {
 
     private int handleClose(int fd) {
         if (fd < 0 || fd >= maxFDN) {
-            Lib.debug(dbgProcess, "Invalid file descriptor");
+            Lib.debug(dbgProcess, "handleClose::Invalid file descriptor");
             return -1;
         }
         FileDescriptor fileDesc = fileDescriptors[fd];
 
         if (fileDesc == null) {
-            Lib.debug(dbgProcess, "Null file descriptor got.");
+            Lib.debug(dbgProcess, "handleClose::Null file descriptor got.");
             return -1;
         }
         fileDescriptors[fd] = null;
@@ -591,28 +606,29 @@ public class UserProcess {
         // }
 
         if (!statusMap.containsKey(file_name)) {
-            Lib.debug(dbgProcess, "statusMap Key error!");
+            Lib.debug(dbgProcess, "handleClose::statusMap Key error!");
             return -1;
         }
         int oldVal = statusMap.get(file_name);
-        statusMap.put(file_name, --oldVal);
+        statusMap.put(file_name, oldVal-1);
 
         if (statusMap.get(file_name) == 0) {
             fileDesc.openFile.close();
             if (deleteList.contains(file_name)) {
-                Lib.debug(dbgProcess, "Execute postponed unlink operation.");
+                Lib.debug(dbgProcess, "handleClose::Execute postponed unlink operation.");
                 if (ThreadedKernel.fileSystem.remove(file_name)) {
                     deleteList.remove(file_name);
+                    Lib.debug(dbgProcess, "handleClose::Unlink success");
                     return 0;
                 }
                 else {
-                    Lib.debug(dbgProcess, "Unlink fails.");
+                    Lib.debug(dbgProcess, "handleClose::Unlink fails.");
                     return -1;
                 }
             }
         }
         else if (statusMap.get(file_name) < 0) {
-            Lib.debug(dbgProcess, "Wrong status value: MINUS ZERO!");
+            Lib.debug(dbgProcess, "handleUnlink::Wrong status value: MINUS ZERO!");
             return -1;
         }
 
@@ -621,14 +637,14 @@ public class UserProcess {
     }
 
     private int handleUnlink(int vpn) {
-        Lib.debug(dbgProcess, "Handle unlink.");
+        Lib.debug(dbgProcess, "handleUnlink::Start");
         String name = readVirtualMemoryString(vpn, 100);
         if (name == null) {
-            Lib.debug(dbgProcess, "Read virtual memory fails.");
+            Lib.debug(dbgProcess, "handleUnlink::Read virtual memory fails.");
             return -1;
         }
         if (name.length() > 256) {
-            Lib.debug(dbgProcess, "File name is too long.");
+            Lib.debug(dbgProcess, "handleUnlink::File name is too long.");
             return -1;
         }
 
@@ -640,18 +656,19 @@ public class UserProcess {
         //    }
         //  }
         if (!statusMap.containsKey(name)) {
-            Lib.debug(dbgProcess, "statusMap Key error!");
+            Lib.debug(dbgProcess, "handleUnlink::statusMap Key error!");
         }
         if (statusMap.get(name) > 0) {
             if (!deleteList.contains(name)) {
-                Lib.debug(dbgProcess, "Postponing deletion.");
                 deleteList.add(name);
             }
+            Lib.debug(dbgProcess, "handleUnlink::Postponing deletion.");
             return 0;
         }
         else {
-            Lib.debug(dbgProcess, "Deletion.");
+            Lib.debug(dbgProcess, "handleUnlink::Directly Deletion.");
             if (ThreadedKernel.fileSystem.remove(name)) {
+                Lib.debug(dbgProcess, "handleUnlink::Successfully deleted");
                 return 0;
             }
         }
