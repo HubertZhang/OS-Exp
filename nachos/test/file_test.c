@@ -4,7 +4,11 @@
 int main() {
     char file_name[10] = "hello";
     int fd = creat(file_name);
-    printf(file_name);
-    printf("File: %d\n", fd);
+
+    char file_content[10] = "Contents"
+    write(fd, file_content, 8);
+
+    close(fd);
+
     return 0;
 }
