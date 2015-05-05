@@ -696,6 +696,10 @@ public class UserProcess {
         lock.acquire();
         Lib.debug(dbgProcess, "Process " + this.pid + " exit with status:" + status);
 
+        processesSet.remove(this.pid);
+        if (processesSet.isEmpty()) {
+            handleHalt();
+        }
         //dealloc page for arguments
         UserKernel.recyclPPN(this.pageTable[numPages-1].ppn);
         numPages --;
@@ -720,11 +724,6 @@ public class UserProcess {
         if (processesSet.contains(this.parentPid)) {
             Lib.debug(dbgProcess, "Parent still alive, record exit status");
             processExitStatusMap.put(this.pid, status);
-        }
-        processesSet.remove(this.pid);
-        if (processesSet.isEmpty()) {
-            handleHalt();
-            lock.release();
         }
         cond.wakeAll();
         lock.release();
@@ -774,6 +773,10 @@ public class UserProcess {
         lock.acquire();
         while(processesSet.contains(pid)) {
             cond.sleep();
+        }
+        if (!processExitStatusMap.containsKey(pid)) {
+            lock.release();
+            return 0;
         }
         int returnStatus = processExitStatusMap.get(pid);
         writeVirtualMemory(intPointerToStatus, Lib.bytesFromInt(returnStatus));
@@ -876,11 +879,47 @@ public class UserProcess {
                 processor.writeRegister(Processor.regV0, result);
                 processor.advancePC();
                 break;
-
-            default:
+            case Processor.exceptionPageFault:
+            case Processor.exceptionTLBMiss:
+            case Processor.exceptionReadOnly:
+            case Processor.exceptionBusError:
+            case Processor.exceptionAddressError:
+            case Processor.exceptionOverflow:
+            case Processor.exceptionIllegalInstruction:
                 Lib.debug(dbgProcess, "Unexpected exception: " +
                         Processor.exceptionNames[cause]);
-                Lib.assertNotReached("Unexpected exception");
+                lock.acquire();
+                processesSet.remove(this.pid);
+                if (processesSet.isEmpty()) {
+                    Machine.halt();
+                }
+                //dealloc page for arguments
+                UserKernel.recyclPPN(this.pageTable[numPages-1].ppn);
+                numPages --;
+
+                //dealloc page for stack
+                for (int i = 0; i < stackPages; i++) {
+                    UserKernel.recyclPPN(this.pageTable[numPages-1-i].ppn);
+                }
+                numPages -= stackPages;
+
+                unloadSections();
+
+                //deal with opened files
+                for (int i = 0; i < maxFDN; i++) {
+                    FileDescriptor fd = fileDescriptors[i];
+                    if (fd != null) {
+                        fd.openFile.close();
+                    }
+                }
+
+                //remove this pid
+
+                cond.wakeAll();
+                lock.release();
+                KThread.finish();
+
+                break;
         }
     }
 
