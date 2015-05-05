@@ -172,6 +172,8 @@ public class UserProcess {
 
         for (int length = 0; length < bytesRead; length++) {
             if (bytes[length] == 0)
+                Lib.debug(dbgProcess, "Read virtual memory string: ");
+                Lib.debug(dbgProcess, new String(bytes, 0, length));
                 return new String(bytes, 0, length);
         }
 
@@ -291,9 +293,6 @@ public class UserProcess {
             pageOffset = 0;
             bytesInCurrentPage = Math.min(length, Processor.pageSize);
         }
-
-        Lib.debug(dbgProcess, "Writing to " + vaddr);
-        Lib.debug(dbgProcess, "Content: " + new String(data, 0, length));
 
         return amount;
     }
@@ -516,13 +515,12 @@ public class UserProcess {
     private int handleOpen(int a0, boolean create) {
         Lib.debug(dbgProcess, "Handle file open.");
 
-        System.out.println("Virtual Mem: " + a0);
         String name = readVirtualMemoryString(a0 ,256);
-        if (name.length() == 0) {
-            System.out.println("Zero-lengthed file name.");
-        }
+        // if (name.length() == 0) {
+        //     System.out.println("Zero-lengthed file name.");
+        // }
 
-        if (name == null) {
+        if (name.length() == 0) {
             System.out.println("Fail to read virtual memory.");
             Lib.debug(dbgProcess, "Fail to read virtual memory.");
             return -1;
@@ -540,9 +538,8 @@ public class UserProcess {
 
         int nfd = newFileDesc();
         if (nfd != -1) {
-            System.out.println("New File descriptor: " + nfd);
             System.out.println("File name: " + name);
-	        Lib.debug(dbgProcess, "Open file" + name);
+	        Lib.debug(dbgProcess, "Open file " + name);
             OpenFile file = UserKernel.fileSystem.open(name, create);
             if (file == null) {
                 System.out.println("Cannot open file: fileSystem.open return null.");
