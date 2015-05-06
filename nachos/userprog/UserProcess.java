@@ -209,7 +209,9 @@ public class UserProcess {
      */
     public int readVirtualMemory(int vaddr, byte[] data, int offset,
                                  int length) {
-        Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
+        if (!(offset >= 0 && length >= 0 && offset + length <= data.length)) {
+            return 0;
+        }
 
         byte[] memory = Machine.processor().getMemory();
         int amount = 0;
@@ -219,7 +221,9 @@ public class UserProcess {
         int bytesInCurrentPage= Math.min(length, Processor.pageSize-pageOffset);
 
         while (length !=0) {
-            Lib.assertTrue(pageTable[idx] != null);
+            if (pageTable[idx] == null) {
+                handleException(Processor.exceptionPageFault);
+            }
             int ppn = pageTable[idx].ppn;
             if(ppn < 0 || ppn >= memory.length) return 0;
 
@@ -271,7 +275,9 @@ public class UserProcess {
      */
     public int writeVirtualMemory(int vaddr, byte[] data, int offset,
                                   int length) {
-        Lib.assertTrue(offset >= 0 && length >= 0 && offset + length <= data.length);
+        if(!(offset >= 0 && length >= 0 && offset + length <= data.length)) {
+            return 0;
+        }
 
         byte[] memory = Machine.processor().getMemory();
 
@@ -283,7 +289,9 @@ public class UserProcess {
         int bytesInCurrentPage= Math.min(length, Processor.pageSize - pageOffset);
 
         while (length !=0) {
-            Lib.assertTrue(pageTable[idx] != null);
+            if (pageTable[idx] == null) {
+                handleException(Processor.exceptionPageFault);
+            }
             int ppn = pageTable[idx].ppn;
             if(ppn < 0 || ppn >= memory.length) return 0;
 
@@ -401,12 +409,20 @@ public class UserProcess {
 
         for (int i = 0; i < argv.length; i++) {
             byte[] stringOffsetBytes = Lib.bytesFromInt(stringOffset);
-            Lib.assertTrue(writeVirtualMemory(entryOffset, stringOffsetBytes) == 4);
+            if (writeVirtualMemory(entryOffset, stringOffsetBytes) != 4) {
+                Lib.debug(dbgProcess, "An error occurred when writing arguments");
+                return false;
+            }
             entryOffset += 4;
-            Lib.assertTrue(writeVirtualMemory(stringOffset, argv[i]) ==
-                    argv[i].length);
+            if (writeVirtualMemory(stringOffset, argv[i])!= argv[i].length) {
+                Lib.debug(dbgProcess, "An error occurred when writing arguments");
+                return false;
+            }
             stringOffset += argv[i].length;
-            Lib.assertTrue(writeVirtualMemory(stringOffset, new byte[]{0}) == 1);
+            if (writeVirtualMemory(stringOffset, new byte[]{0}) != 1) {
+                Lib.debug(dbgProcess, "An error occurred when writing arguments");
+                return false;
+            }
             stringOffset += 1;
         }
 
@@ -864,7 +880,7 @@ public class UserProcess {
 
             default:
                 Lib.debug(dbgProcess, "Unknown syscall " + syscall);
-                Lib.assertNotReached("Unknown system call!");
+                handleException(Processor.exceptionIllegalInstruction);
         }
         return 0;
     }
