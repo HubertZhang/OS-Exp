@@ -703,6 +703,8 @@ public class UserProcess {
         mapLock.acquire();
         if (!statusMap.containsKey(name)) {
             Lib.debug(dbgProcess, "handleUnlink::statusMap Key error!");
+            mapLock.release();
+            return -1;
         }
         mapLock.release();
         if (statusMap.get(name) > 0) {
@@ -714,12 +716,16 @@ public class UserProcess {
             listLock.release();
             return 0;
         }
-        else {
+        else if (statusMap.get(name) == 0) {
             Lib.debug(dbgProcess, "handleUnlink::Directly Deletion.");
             if (ThreadedKernel.fileSystem.remove(name)) {
                 Lib.debug(dbgProcess, "handleUnlink::Successfully deleted");
                 return 0;
             }
+        }
+        else {
+            Lib.debug(dbgProcess, "handleUnlink::Deleted File.");
+            return -1;
         }
         return -1;
     }
