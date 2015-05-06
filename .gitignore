@@ -28,3 +28,5 @@ nachos/test/*.s
 nachos/test/*.coff
 nachos/test/libnachos.a
 project_2.tar.gz
+nachos/test/.idea
+CMakeLists.txt

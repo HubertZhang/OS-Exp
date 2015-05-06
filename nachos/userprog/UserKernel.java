@@ -110,7 +110,7 @@ public class UserKernel extends ThreadedKernel {
         }
     }
 
-    private static final int MAX_PPN = 1000000;
+    private static final int MAX_PPN = Machine.processor().getNumPhysPages();
 
     private static Lock memLock = null;
     // linked-list of USED memory

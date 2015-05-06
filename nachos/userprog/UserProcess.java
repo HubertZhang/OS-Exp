@@ -459,6 +459,19 @@ public class UserProcess {
      * Release any resources allocated by <tt>loadSections()</tt>.
      */
     protected void unloadSections() {
+        // unload sections
+        for (int s = 0; s < coff.getNumSections(); s++) {
+            CoffSection section = coff.getSection(s);
+
+            Lib.debug(dbgProcess, "\treleasing " + section.getName()
+                    + " section (" + section.getLength() + " pages)");
+
+            for (int i = 0; i < section.getLength(); i++) {
+                int vpn = section.getFirstVPN() + i;
+                UserKernel.recyclPPN(pageTable[vpn].ppn);
+                pageTable[vpn].ppn = -1;
+            }
+        }
     }
 
     /**
@@ -508,10 +521,10 @@ public class UserProcess {
      * Handle the halt() system call.
      */
     private int handleHalt() {
+        Lib.debug(dbgProcess, "Handle halt.");
+        if (this.pid == 0)
+            Machine.halt();
 
-        Machine.halt();
-
-        Lib.assertNotReached("Machine.halt() did not halt machine!");
         return 0;
     }
 
@@ -559,6 +572,7 @@ public class UserProcess {
 
 
     private int handleRead(int fd, int buff, int count) {
+        Lib.debug(dbgProcess, "Handle file read.");
         if (fileDescriptors[fd] == null)
             return -1;
         OpenFile fileDesc = fileDescriptors[fd].openFile;
@@ -571,6 +585,7 @@ public class UserProcess {
     }
 
     private int handleWrite(int fd, int buff, int count){
+        Lib.debug(dbgProcess, "Handle file write.");
         if (fileDescriptors[fd] == null)
             return -1;
         OpenFile fileDesc = fileDescriptors[fd].openFile;
@@ -583,6 +598,7 @@ public class UserProcess {
     }
 
     private int handleClose(int fd) {
+        Lib.debug(dbgProcess, "Handle file close.");
         if (fd < 0 || fd >= maxFDN) {
             Lib.debug(dbgProcess, "handleClose::Invalid file descriptor");
             return -1;
@@ -676,14 +692,38 @@ public class UserProcess {
     }
 
     private int handleExit(int status) {
+        Lib.debug(dbgProcess, "Handle exit.");
         lock.acquire();
-        if (processesSet.contains(this.parentPid)) {
-            processExitStatusMap.put(this.pid, status);
-        }
+        Lib.debug(dbgProcess, "Process " + this.pid + " exit with status:" + status);
+
         processesSet.remove(this.pid);
         if (processesSet.isEmpty()) {
             handleHalt();
-            lock.release();
+        }
+        //dealloc page for arguments
+        UserKernel.recyclPPN(this.pageTable[numPages-1].ppn);
+        numPages --;
+
+        //dealloc page for stack
+        for (int i = 0; i < stackPages; i++) {
+            UserKernel.recyclPPN(this.pageTable[numPages-1-i].ppn);
+        }
+        numPages -= stackPages;
+
+        unloadSections();
+        
+        //deal with opened files
+        for (int i = 0; i < maxFDN; i++) {
+            FileDescriptor fd = fileDescriptors[i];
+            if (fd != null) {
+                handleClose(i);
+            }
+        }
+        coff.close();
+        //remove this pid
+        if (processesSet.contains(this.parentPid)) {
+            Lib.debug(dbgProcess, "Parent still alive, record exit status");
+            processExitStatusMap.put(this.pid, status);
         }
         cond.wakeAll();
         lock.release();
@@ -692,6 +732,7 @@ public class UserProcess {
     }
 
     private int handleExec(int charPointerToName, int argc, int charPointerPointerToArgv) {
+        Lib.debug(dbgProcess, "Handle execute");
         String name = readVirtualMemoryString(charPointerToName, 256);
         if (argc < 0) {
             return -1;
@@ -725,6 +766,7 @@ public class UserProcess {
     }
 
     private int handleJoin(int pid, int intPointerToStatus) {
+        Lib.debug(dbgProcess, "Handle join");
         if (!childrenSet.contains(pid)) {
             return -1;
         }
@@ -732,12 +774,16 @@ public class UserProcess {
         while(processesSet.contains(pid)) {
             cond.sleep();
         }
+        if (!processExitStatusMap.containsKey(pid)) {
+            lock.release();
+            return 0;
+        }
         int returnStatus = processExitStatusMap.get(pid);
         writeVirtualMemory(intPointerToStatus, Lib.bytesFromInt(returnStatus));
         processExitStatusMap.remove(pid);
         childrenSet.remove(pid);
         lock.release();
-        return returnStatus == 0 ? 1 : 0;
+        return 1;
     }
 
     private static final int
@@ -833,11 +879,47 @@ public class UserProcess {
                 processor.writeRegister(Processor.regV0, result);
                 processor.advancePC();
                 break;
-
-            default:
+            case Processor.exceptionPageFault:
+            case Processor.exceptionTLBMiss:
+            case Processor.exceptionReadOnly:
+            case Processor.exceptionBusError:
+            case Processor.exceptionAddressError:
+            case Processor.exceptionOverflow:
+            case Processor.exceptionIllegalInstruction:
                 Lib.debug(dbgProcess, "Unexpected exception: " +
                         Processor.exceptionNames[cause]);
-                Lib.assertNotReached("Unexpected exception");
+                lock.acquire();
+                processesSet.remove(this.pid);
+                if (processesSet.isEmpty()) {
+                    Machine.halt();
+                }
+                //dealloc page for arguments
+                UserKernel.recyclPPN(this.pageTable[numPages-1].ppn);
+                numPages --;
+
+                //dealloc page for stack
+                for (int i = 0; i < stackPages; i++) {
+                    UserKernel.recyclPPN(this.pageTable[numPages-1-i].ppn);
+                }
+                numPages -= stackPages;
+
+                unloadSections();
+
+                //deal with opened files
+                for (int i = 0; i < maxFDN; i++) {
+                    FileDescriptor fd = fileDescriptors[i];
+                    if (fd != null) {
+                        handleClose(i);
+                    }
+                }
+                coff.close();
+                //remove this pid
+
+                cond.wakeAll();
+                lock.release();
+                KThread.finish();
+
+                break;
         }
     }
 
