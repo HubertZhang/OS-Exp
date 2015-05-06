@@ -591,7 +591,7 @@ public class UserProcess {
 
     private int handleRead(int fd, int buff, int count) {
         Lib.debug(dbgProcess, "Handle file read.");
-        if (fileDescriptors[fd] == null)
+        if (fd < 0 || fd >= 16 || fileDescriptors[fd] == null)
             return -1;
         OpenFile fileDesc = fileDescriptors[fd].openFile;
         int pos = fileDescriptors[fd].pos;
@@ -604,13 +604,17 @@ public class UserProcess {
 
     private int handleWrite(int fd, int buff, int count){
         Lib.debug(dbgProcess, "Handle file write.");
-        if (fileDescriptors[fd] == null)
+        if (fd < 0 || fd >= 16 || fileDescriptors[fd] == null)
             return -1;
         OpenFile fileDesc = fileDescriptors[fd].openFile;
         int pos = fileDescriptors[fd].pos;
         byte[] buffer = new byte[count];
-        readVirtualMemory(buff, buffer);
+        int amount = readVirtualMemory(buff, buffer);
+        if (amount < count)
+            return -1;
         int rtn = fileDesc.write(pos, buffer, 0, count);
+        if (rtn < count)
+            return -1;
         fileDescriptors[fd].pos += rtn;
         return rtn;
     }
