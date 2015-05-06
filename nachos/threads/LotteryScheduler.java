@@ -121,11 +121,14 @@ public class LotteryScheduler extends PriorityScheduler {
 
         public KThread nextThread(){
             if(holder != null){
-                if(transferLottery && root != null)
+                if(transferLottery && root != null) {
                     holder.tickets -= root.subsum;
+                    holder.subsum = holder.tickets;
+                }
                 holder = null;
             }
-            if(root == null) return null;
+            if(root == null)
+                return null;
 
             int nxt = 1 + new Random().nextInt(root.subsum);
             LotteryState cur = root;
@@ -315,7 +318,7 @@ public class LotteryScheduler extends PriorityScheduler {
             queue = waitQueue;
             if(this == waitQueue.holder){
                 waitQueue.holder = null;
-                if(waitQueue.transferLottery) {
+                if(waitQueue.transferLottery && waitQueue.root != null) {
                     tickets -= waitQueue.root.subsum;
                     subsum = tickets;
                 }
@@ -352,10 +355,18 @@ public class LotteryScheduler extends PriorityScheduler {
     }
 
     private static class JoinTest implements Runnable {
+        private int cntr;
+
+        public JoinTest(int cnt){
+            cntr = cnt;
+        }
+
         public void run(){
-            KThread lo = new KThread(new PrintTest()).setName("lo");
-            lo.fork();
-            lo.join();
+            if(cntr > 0) {
+                KThread lo = new KThread(new JoinTest(cntr-1)).setName("lo");
+                lo.fork();
+                lo.join();
+            }
             for(int i=0; i<5; i++){
                 System.out.println(KThread.currentThread().getName() + " " + getThreadState(KThread.currentThread()).getEffectivePriority());
                 KThread.yield();
@@ -366,7 +377,7 @@ public class LotteryScheduler extends PriorityScheduler {
     public static void selfTest(){
         System.out.println("Begin Lottery test");
 
-        KThread hi = new KThread(new JoinTest()).setName("hi");
+        KThread hi = new KThread(new JoinTest(10)).setName("hi");
         ThreadedKernel.scheduler.setPriority(hi, 100);
         hi.fork();
         KThread[] mids = new KThread[20];
