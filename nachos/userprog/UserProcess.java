@@ -633,6 +633,7 @@ public class UserProcess {
                     return -1;
                 }
             }
+            listLock.release();
         }
         else if (statusMap.get(file_name) < 0) {
             Lib.debug(dbgProcess, "handleUnlink::Wrong status value: MINUS ZERO!");
