@@ -367,10 +367,10 @@ public class LotteryScheduler extends PriorityScheduler {
         System.out.println("Begin Lottery test");
 
         KThread hi = new KThread(new JoinTest()).setName("hi");
-        ThreadedKernel.scheduler.setPriority(hi, 200);
+        ThreadedKernel.scheduler.setPriority(hi, 100);
         hi.fork();
-        KThread[] mids = new KThread[10];
-        for(int i=0; i<10; i++){
+        KThread[] mids = new KThread[20];
+        for(int i=0; i<20; i++){
             mids[i] = new KThread(new PrintTest()).setName("mid " + i);
             ThreadedKernel.scheduler.setPriority(mids[i], 5);
             mids[i].fork();
