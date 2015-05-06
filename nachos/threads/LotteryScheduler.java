@@ -345,7 +345,7 @@ public class LotteryScheduler extends PriorityScheduler {
     private static class PrintTest implements Runnable {
         public void run(){
             for(int i=0; i<5; i++){
-                System.out.println(KThread.currentThread().getName());
+                System.out.println(KThread.currentThread().getName() + " " + getThreadState(KThread.currentThread()).getEffectivePriority());
                 KThread.yield();
             }
         }
@@ -357,7 +357,7 @@ public class LotteryScheduler extends PriorityScheduler {
             lo.fork();
             lo.join();
             for(int i=0; i<5; i++){
-                System.out.println(KThread.currentThread().getName());
+                System.out.println(KThread.currentThread().getName() + " " + getThreadState(KThread.currentThread()).getEffectivePriority());
                 KThread.yield();
             }
         }
@@ -371,7 +371,7 @@ public class LotteryScheduler extends PriorityScheduler {
         hi.fork();
         KThread[] mids = new KThread[20];
         for(int i=0; i<20; i++){
-            mids[i] = new KThread(new PrintTest()).setName("mid " + i);
+            mids[i] = new KThread(new PrintTest()).setName("mid_" + i);
             ThreadedKernel.scheduler.setPriority(mids[i], 5);
             mids[i].fork();
         }
