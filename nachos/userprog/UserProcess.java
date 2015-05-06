@@ -546,6 +546,7 @@ public class UserProcess {
 
             fileDescriptors[nfd] = new FileDescriptor(file);
 
+            mapLock.acquire();
             if (statusMap.containsKey(name)) {
                 int oldValue = statusMap.get(name);
                 statusMap.put(name, ++oldValue);
@@ -553,6 +554,7 @@ public class UserProcess {
             else {
                 statusMap.put(name, 1);
             }
+            mapLock.release();
         }
         return nfd;
     }
@@ -605,24 +607,29 @@ public class UserProcess {
         //     }
         // }
 
+        mapLock.acquire();
         if (!statusMap.containsKey(file_name)) {
             Lib.debug(dbgProcess, "handleClose::statusMap Key error!");
             return -1;
         }
         int oldVal = statusMap.get(file_name);
         statusMap.put(file_name, oldVal-1);
+        mapLock.release();
 
         if (statusMap.get(file_name) == 0) {
             fileDesc.openFile.close();
+            listLock.acquire();
             if (deleteList.contains(file_name)) {
                 Lib.debug(dbgProcess, "handleClose::Execute postponed unlink operation.");
                 if (ThreadedKernel.fileSystem.remove(file_name)) {
                     deleteList.remove(file_name);
                     Lib.debug(dbgProcess, "handleClose::Unlink success");
+                    listLock.release();
                     return 0;
                 }
                 else {
                     Lib.debug(dbgProcess, "handleClose::Unlink fails.");
+                    listLock.release();
                     return -1;
                 }
             }
@@ -655,14 +662,18 @@ public class UserProcess {
         //        break;
         //    }
         //  }
+        mapLock.acquire();
         if (!statusMap.containsKey(name)) {
             Lib.debug(dbgProcess, "handleUnlink::statusMap Key error!");
         }
+        mapLock.release();
         if (statusMap.get(name) > 0) {
+            listLock.acquire();
             if (!deleteList.contains(name)) {
                 deleteList.add(name);
             }
             Lib.debug(dbgProcess, "handleUnlink::Postponing deletion.");
+            listLock.release();
             return 0;
         }
         else {
@@ -879,6 +890,8 @@ public class UserProcess {
     int parentPid;
     Set<Integer> childrenSet = new HashSet<Integer>();
 
+    private static Lock listLock = new Lock();
+    private static Lock mapLock = new Lock();
     private static int nextPid = 0;
     private static Lock lock = new Lock();
     private static Condition cond = new Condition(lock);
