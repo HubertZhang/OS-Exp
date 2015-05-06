@@ -642,6 +642,7 @@ public class UserProcess {
         mapLock.acquire();
         if (!statusMap.containsKey(file_name)) {
             Lib.debug(dbgProcess, "handleClose::statusMap Key error!");
+            mapLock.release();
             return -1;
         }
         int oldVal = statusMap.get(file_name);
@@ -678,7 +679,7 @@ public class UserProcess {
 
     private int handleUnlink(int vpn) {
         Lib.debug(dbgProcess, "handleUnlink::Start");
-        String name = readVirtualMemoryString(vpn, 100);
+        String name = readVirtualMemoryString(vpn, 256);
         if (name == null) {
             Lib.debug(dbgProcess, "handleUnlink::Read virtual memory fails.");
             return -1;
