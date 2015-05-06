@@ -591,7 +591,7 @@ public class UserProcess {
 
     private int handleRead(int fd, int buff, int count) {
         Lib.debug(dbgProcess, "Handle file read.");
-        if (fileDescriptors[fd] == null)
+        if (fd < 0 || fd >= 16 || fileDescriptors[fd] == null)
             return -1;
         OpenFile fileDesc = fileDescriptors[fd].openFile;
         int pos = fileDescriptors[fd].pos;
@@ -604,13 +604,17 @@ public class UserProcess {
 
     private int handleWrite(int fd, int buff, int count){
         Lib.debug(dbgProcess, "Handle file write.");
-        if (fileDescriptors[fd] == null)
+        if (fd < 0 || fd >= 16 || fileDescriptors[fd] == null)
             return -1;
         OpenFile fileDesc = fileDescriptors[fd].openFile;
         int pos = fileDescriptors[fd].pos;
         byte[] buffer = new byte[count];
-        readVirtualMemory(buff, buffer);
+        int amount = readVirtualMemory(buff, buffer);
+        if (amount < count)
+            return -1;
         int rtn = fileDesc.write(pos, buffer, 0, count);
+        if (rtn < count)
+            return -1;
         fileDescriptors[fd].pos += rtn;
         return rtn;
     }
@@ -699,6 +703,8 @@ public class UserProcess {
         mapLock.acquire();
         if (!statusMap.containsKey(name)) {
             Lib.debug(dbgProcess, "handleUnlink::statusMap Key error!");
+            mapLock.release();
+            return -1;
         }
         mapLock.release();
         if (statusMap.get(name) > 0) {
@@ -710,12 +716,16 @@ public class UserProcess {
             listLock.release();
             return 0;
         }
-        else {
+        else if (statusMap.get(name) == 0) {
             Lib.debug(dbgProcess, "handleUnlink::Directly Deletion.");
             if (ThreadedKernel.fileSystem.remove(name)) {
                 Lib.debug(dbgProcess, "handleUnlink::Successfully deleted");
                 return 0;
             }
+        }
+        else {
+            Lib.debug(dbgProcess, "handleUnlink::Deleted File.");
+            return -1;
         }
         return -1;
     }
