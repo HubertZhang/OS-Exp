@@ -158,7 +158,10 @@ public class LotteryScheduler extends PriorityScheduler {
         node.left = null; node.right = null;
         if(lft != null) lft.parent = null;
         if(rght != null) rght.parent = null;
-        node.subsum = node.tickets;
+        if(node.queue.transferLottery)
+            node.tickets = node.subsum;
+        else
+            node.subsum = node.tickets;
 
         if(lft == null) {
             return rght;
@@ -250,6 +253,7 @@ public class LotteryScheduler extends PriorityScheduler {
         // public KThread thread;
         public LotteryQueue queue = null;
         public int tickets;
+        public int origTickets;
         public int subsum;
         private boolean loop = false;
 
@@ -259,6 +263,7 @@ public class LotteryScheduler extends PriorityScheduler {
             super(thread);
             // this.thread = thread;
             tickets = 1; subsum = tickets;
+            origTickets = tickets;
         }
 
         public int getEffectivePriority(){
@@ -266,8 +271,9 @@ public class LotteryScheduler extends PriorityScheduler {
         }
 
         public void setTickets(int num){
-            int diff = num - tickets;
-            tickets = num;
+            int diff = num - origTickets;
+            origTickets = num;
+            tickets += diff;
             if(diff == 0) return;
             LotteryQueue Q = queue;
             LotteryState cur = this;
