@@ -160,8 +160,12 @@ public class LotteryScheduler extends PriorityScheduler {
         if(rght != null) rght.parent = null;
         node.subsum = node.tickets;
 
-        if(lft == null) return rght;
-        if(rght == null) return lft;
+        if(lft == null) {
+            return rght;
+        }
+        if(rght == null) {
+            return lft;
+        }
 
         LotteryState cur = lft;
         for(; cur.right != null; cur = cur.right);
@@ -255,6 +259,10 @@ public class LotteryScheduler extends PriorityScheduler {
             super(thread);
             // this.thread = thread;
             tickets = 1; subsum = tickets;
+        }
+
+        public int getEffectivePriority(){
+            return tickets;
         }
 
         public void setTickets(int num){
