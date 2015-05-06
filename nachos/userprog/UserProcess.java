@@ -522,9 +522,9 @@ public class UserProcess {
      */
     private int handleHalt() {
         Lib.debug(dbgProcess, "Handle halt.");
-        Machine.halt();
+        if (this.pid == 0)
+            Machine.halt();
 
-        Lib.assertNotReached("Machine.halt() did not halt machine!");
         return 0;
     }
 
@@ -716,10 +716,10 @@ public class UserProcess {
         for (int i = 0; i < maxFDN; i++) {
             FileDescriptor fd = fileDescriptors[i];
             if (fd != null) {
-                fd.openFile.close();
+                handleClose(i);
             }
         }
-
+        coff.close();
         //remove this pid
         if (processesSet.contains(this.parentPid)) {
             Lib.debug(dbgProcess, "Parent still alive, record exit status");
@@ -909,10 +909,10 @@ public class UserProcess {
                 for (int i = 0; i < maxFDN; i++) {
                     FileDescriptor fd = fileDescriptors[i];
                     if (fd != null) {
-                        fd.openFile.close();
+                        handleClose(i);
                     }
                 }
-
+                coff.close();
                 //remove this pid
 
                 cond.wakeAll();
